@@ -148,6 +148,17 @@ class Miscellaneous:
 
 
 @dataclass
+class OpenAI:
+    api_key: str
+
+    @staticmethod
+    def from_env(env):
+        return OpenAI(
+            api_key=env.str("OPENAI_API_KEY")
+        )
+
+
+@dataclass
 class Config:
     """
     The main configuration class that integrates all the other configuration classes.
@@ -170,6 +181,7 @@ class Config:
     misc: Miscellaneous
     db: Optional[DbConfig] = None
     redis: Optional[RedisConfig] = None
+    openai: Optional[OpenAI] = None
 
 
 def load_config(path: str = None) -> Config:
@@ -190,4 +202,5 @@ def load_config(path: str = None) -> Config:
         # db=DbConfig.from_env(env),
         # redis=RedisConfig.from_env(env),
         misc=Miscellaneous(),
+        openai=OpenAI.from_env(env)
     )
