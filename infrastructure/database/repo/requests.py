@@ -24,27 +24,6 @@ class BannedStickersRepo:
         return result.scalars().all()
 
 
-class ChatAdminsRepo:
-    def __init__(self, session: AsyncSession):
-        self.session = session
-
-    async def select_all_chat_admins(self, chat_id: int) -> List[ChatAdmins]:
-        stmt = select(ChatAdmins.admin_id).where(ChatAdmins.chat_id == chat_id)
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
-
-    async def add_chat_admin(self, chat_id: int, admin_id: int):
-        stmt = insert(ChatAdmins).values(chat_id=chat_id, admin_id=admin_id)
-        await self.session.execute(stmt)
-        await self.session.commit()
-
-    async def del_chat_admin(self, chat_id: int, admin_id: int):
-        stmt = delete(ChatAdmins).where(ChatAdmins.chat_id == chat_id,
-                                        ChatAdmins.admin_id == admin_id)
-        await self.session.execute(stmt)
-        await self.session.commit()
-
-
 class RatingUsersRepo:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -85,9 +64,6 @@ class RequestsRepo:
     def banned_stickers(self) -> BannedStickersRepo:
         return BannedStickersRepo(self.session)
 
-    @property
-    def chat_admins(self) -> ChatAdminsRepo:
-        return ChatAdminsRepo(self.session)
 
     @property
     def rating_users(self) -> RatingUsersRepo:

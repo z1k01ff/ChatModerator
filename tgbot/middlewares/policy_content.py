@@ -32,7 +32,6 @@ class OpenAIModerationMiddleware(BaseMiddleware):
         response = await self.client.moderations.create(input=event.text)
         user_id = event.from_user.id
         for category, flagged in response.results[0].categories.model_dump().items():
-            logging.info(f"Category {category} flagged: {flagged}")
             if flagged:
                 text = self.warning_messages.get(category)
                 if text:
