@@ -95,6 +95,7 @@ async def read_only_mode(message: types.Message):
 
     # Если бот не может замутить пользователя (администратора), возникает ошибка BadRequest которую мы обрабатываем
     except Exception as e:
+        logging.exception(e)
         # Отправляем сообщение
         await message.answer(
             f"Пользователь {member_mentioned} "
@@ -199,7 +200,7 @@ async def ban_user(message: types.Message):
     member_mentioned = message.reply_to_message.from_user.mention_html()
     try:
         # Пытаемся удалить пользователя из чата
-        await message.chat.kick(user_id=member_id)
+        await message.chat.ban(user_id=member_id)
         # Информируем об этом
         await message.answer(
             f"Пользователь {member_mentioned} был успешно забанен администратором {admin_mentioned}"
@@ -210,6 +211,7 @@ async def ban_user(message: types.Message):
         )
     except Exception as e:
         # Отправляем сообщение
+        logging.exception(e)
         await message.answer(
             f"Пользователь {member_mentioned} "
             "является администратором чата, я не могу выдать ему RO"

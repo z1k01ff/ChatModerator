@@ -54,8 +54,8 @@ def select_emoji(length, is_biba):
 
 
 # Implementing rate limits
-@flags.rate_limit(limit=120, key="gay")
 @fun_router.message(Command("gay", prefix="!/"))
+@flags.rate_limit(limit=120, key="gay")
 async def gay(message: types.Message):
     """Handler for the /gay command.
     In a humorous and respectful manner, the bot sends a random percentage reflecting a playful take on the user's alignment with a random LGBTQ+ orientation.
@@ -89,8 +89,10 @@ async def gay(message: types.Message):
         random.choice(phrases).format(username=target, percentage=percentage))
 
 
-@flags.rate_limit(limit=60, key="fun")
+
+
 @fun_router.message(Command("biba", prefix="!/"))
+@flags.rate_limit(limit=60, key="fun")
 async def biba(message: types.Message):
     """Хендлер, для обработки команды /biba или !biba
 
@@ -122,7 +124,7 @@ async def biba(message: types.Message):
     gender = determine_gender(message.from_user.first_name)
 
     # Random chance to switch gender
-    switch_chance = 20 if gender == 'woman' else 40
+    switch_chance = 20
     if random.randint(1, 100) <= switch_chance:
         gender = 'man' if gender == 'woman' else 'woman'
 

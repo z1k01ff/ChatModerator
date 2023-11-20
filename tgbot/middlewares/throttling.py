@@ -1,3 +1,4 @@
+import logging
 from typing import Callable, Dict, Any, Awaitable
 import asyncio
 from datetime import datetime, timedelta
@@ -32,6 +33,7 @@ class ThrottlingMiddleware(BaseMiddleware):
 
         key_prefix = rate_limit.get("key", "antiflood")
         limit = rate_limit.get("limit", 30)
+        logging.info(f"key_prefix: {key_prefix}, limit: {limit}")
 
         key = f"{key_prefix}:{user_id}"
         if key in self.users:
@@ -47,6 +49,8 @@ class ThrottlingMiddleware(BaseMiddleware):
                     self.users[key] = (now, 0)  # Reset the throttle count
             else:
                 self.users[key] = (now, 0)
+        else:
+            self.users[key] = (now, 0)
 
         # Call the next handler
         return await handler(event, data)

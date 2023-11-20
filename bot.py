@@ -40,14 +40,13 @@ def register_global_middlewares(dp: Dispatcher, config: Config, session_pool,
     """
     middleware_types = [
         ConfigMiddleware(config),
-        ThrottlingMiddleware(),
         OpenAIModerationMiddleware(openai_client),
     ]
 
     for middleware_type in middleware_types:
         dp.message.outer_middleware(middleware_type)
         dp.callback_query.outer_middleware(middleware_type)
-
+    dp.message.middleware(ThrottlingMiddleware())
     dp.update.outer_middleware(DatabaseMiddleware(session_pool))
 
 
