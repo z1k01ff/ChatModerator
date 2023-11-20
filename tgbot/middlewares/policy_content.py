@@ -52,6 +52,8 @@ class OpenAIModerationMiddleware(BaseMiddleware):
                     elif self.warned_users[user_id]["times"] > 4:
                         await event.chat.restrict(user_id, permissions=types.ChatPermissions(can_send_messages=False), until_date=datetime.timedelta(hours=1))
                         await event.reply("Ви були заблоковані за порушення правил спільноти на 1 годину")
+                        # clear the user from the dict
+                        del self.warned_users[user_id]
 
                     break  # Stop after sending the first relevant warning
 
