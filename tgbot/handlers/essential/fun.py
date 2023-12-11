@@ -94,28 +94,10 @@ async def gay(message: types.Message):
 @fun_router.message(Command("biba", prefix="!/"))
 @flags.rate_limit(limit=60, key="fun")
 async def biba(message: types.Message):
-    """Хендлер, для обработки команды /biba или !biba
-
-    В ответ, бот отправляет размер бибы
-
-    Примеры:
-        /biba
-        /biba 10
-        /biba 1-10
-        /biba 10-1
-        !biba
-        !biba 10
-        !biba 1-10
-        !biba 10-1
-    """
-    # разбиваем сообщение на команду и аргументы через регулярное выражение
     command_parse = re.compile(r"(!biba|/biba) ?(-?\d*)?-?(\d+)?")
     parsed = command_parse.match(message.text)
-    # генерируем размер бибы от 1 до 30 по умолчанию (если аргументы не переданы)
     length = generate_num(parsed.group(2), parsed.group(3), 1, 30)
 
-    # если это ответ на сообщение, будем мерять бибу автора первичного сообщения
-    # в противном случае, бибу того, кто использовал команду
     if message.reply_to_message:
         target = message.reply_to_message.from_user.mention_html()
     else:
