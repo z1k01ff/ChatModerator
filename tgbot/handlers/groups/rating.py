@@ -140,20 +140,24 @@ async def add_rating_handler(m: types.Message, repo: RequestsRepo):
 @groups_rating_router.message_reaction(
     F.new_reaction[0].emoji.in_(positive_emojis).as_("positive_rating"),
 )
-@groups_rating_router.message_reaction(F.new_reaction[0].emoji.in_(negative_emojis))
+@groups_rating_router.message_reaction(
+    F.new_reaction[0].emoji.in_(negative_emojis).as_("negative_rating")
+)
 @flags.override(user_id=362089194)
 @flags.rate_limit(limit=30, key="rating")
 async def add_reaction_rating_handler(
     reaction: types.MessageReactionUpdated,
     repo: RequestsRepo,
     bot: Bot,
+    positive_rating: bool | None = None,
+    negative_rating: bool | None = None,
 ):
     rating_change = 1 if reaction.new_reaction[0].emoji in positive_emojis else -1
 
     helper_id = await repo.message_user.get_user_id_by_message_id(
         reaction.chat.id, reaction.message_id
     )
-    if not helper_id:
+    if not helper_id or helper_id == reaction.user.id:
         logging.info(
             f"User {reaction.user.id} tried to rate message {reaction.message_id} "
             f"but the message is not found in the database"
