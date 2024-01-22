@@ -5,14 +5,18 @@ from typing import Optional
 
 
 def generate_num(
-        min_num: Optional[str] = None,
-        max_num: Optional[str] = None,
-        min_default: int = 1,
-        max_default: int = 100,
+    min_num: Optional[str] = None,
+    max_num: Optional[str] = None,
+    min_default: int = 1,
+    max_default: int = 100,
 ) -> int:
     # Define a function to safely convert string to int with boundaries
-    def safe_int(num_str: Optional[str], default: int, lower_bound: int = 0,
-                 upper_bound: int = sys.maxsize) -> int:
+    def safe_int(
+        num_str: Optional[str],
+        default: int,
+        lower_bound: int = 0,
+        upper_bound: int = sys.maxsize,
+    ) -> int:
         try:
             num = int(num_str) if num_str else default
             return max(lower_bound, min(num, upper_bound))

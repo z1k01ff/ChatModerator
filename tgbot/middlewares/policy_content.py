@@ -21,10 +21,10 @@ class OpenAIModerationMiddleware(BaseMiddleware):
         self.warned_users = dict()
 
     async def __call__(
-            self,
-            handler: Callable[[types.Message, Dict[str, Any]], Awaitable[Any]],
-            event: types.Message,
-            data: Dict[str, Any],
+        self,
+        handler: Callable[[types.Message, Dict[str, Any]], Awaitable[Any]],
+        event: types.Message,
+        data: Dict[str, Any],
     ) -> Any:
         if not isinstance(event, types.Message) or not event.text:
             return await handler(event, data)
@@ -47,11 +47,19 @@ class OpenAIModerationMiddleware(BaseMiddleware):
                     if times_violated == 1:
                         await event.reply(text)
                     elif times_violated == 3:
-                        await event.reply("Увага: Ви продовжуєте порушувати правила спільноти. Якщо будете продовжувати, Вас можуть заблокувати")
+                        await event.reply(
+                            "Увага: Ви продовжуєте порушувати правила спільноти. Якщо будете продовжувати, Вас можуть заблокувати"
+                        )
 
                     elif self.warned_users[user_id]["times"] > 4:
-                        await event.chat.restrict(user_id, permissions=types.ChatPermissions(can_send_messages=False), until_date=datetime.timedelta(hours=1))
-                        await event.reply("Ви були заблоковані за порушення правил спільноти на 1 годину")
+                        await event.chat.restrict(
+                            user_id,
+                            permissions=types.ChatPermissions(can_send_messages=False),
+                            until_date=datetime.timedelta(hours=1),
+                        )
+                        await event.reply(
+                            "Ви були заблоковані за порушення правил спільноти на 1 годину"
+                        )
                         # clear the user from the dict
                         del self.warned_users[user_id]
 

@@ -6,6 +6,7 @@ from aiogram.filters import Command
 
 groups_chat_edit_router = Router()
 
+
 @groups_chat_edit_router.message(Command("set_photo", prefix="/!"), F.admin)
 async def set_new_photo(message: types.Message):
     source_message = message.reply_to_message
@@ -34,4 +35,3 @@ async def set_new_description(message: types.Message):
     description = source_message.text
     await message.chat.set_description(description=description)
     await message.reply("Опис був успішно оновлений.")
-

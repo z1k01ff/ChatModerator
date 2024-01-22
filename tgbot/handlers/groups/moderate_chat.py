@@ -7,10 +7,13 @@ from aiogram import types, Bot, F, Router
 from aiogram.filters import Command
 
 from tgbot.filters.permissions import HasPermissionsFilter
-from tgbot.misc.permissions import set_user_ro_permissions, \
-    set_new_user_approved_permissions, set_no_media_permissions
+from tgbot.misc.permissions import (
+    set_user_ro_permissions,
+    set_new_user_approved_permissions,
+    set_no_media_permissions,
+)
 
-restriction_time_regex = re.compile(r'(\b[1-9][0-9]*)([mhds]\b)')
+restriction_time_regex = re.compile(r"(\b[1-9][0-9]*)([mhds]\b)")
 
 groups_moderate_router = Router()
 
@@ -40,8 +43,11 @@ def get_restriction_period(text: str) -> int:
     return 0
 
 
-@groups_moderate_router.message(Command("ro", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("ro", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def read_only_mode(message: types.Message):
     """Хендлер с фильтром в группе, где можно использовать команду !ro ИЛИ /ro
     :time int: время на которое нужно замутить пользователя в минутах
@@ -103,9 +109,7 @@ async def read_only_mode(message: types.Message):
         )
         # Вносим информацию о муте в лог
         logging.info(f"Бот не смог замутить пользователя @{member_username}")
-    service_message = await message.reply(
-        'Сообщение самоуничтожится через 5 секунд.'
-    )
+    service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
 
     await asyncio.sleep(5)
     # после прошедших 5 секунд, бот удаляет сообщение от администратора и от самого бота
@@ -114,8 +118,11 @@ async def read_only_mode(message: types.Message):
     await message.reply_to_message.delete()
 
 
-@groups_moderate_router.message(Command("unro", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("unro", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def undo_read_only_mode(message: types.Message, bot: Bot):
     """Хендлер с фильтром в группе, где можно использовать команду !unro ИЛИ /unro"""
     (
@@ -153,9 +160,12 @@ async def undo_read_only_mode(message: types.Message, bot: Bot):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("ban", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True),
-                                F.reply_to_message.sender_chat)
+@groups_moderate_router.message(
+    Command("ban", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+    F.reply_to_message.sender_chat,
+)
 async def ban_channel(message: types.Message):
     from_user = message.from_user
     sender_chat = message.reply_to_message.sender_chat
@@ -187,8 +197,11 @@ async def ban_channel(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("ban", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("ban", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def ban_user(message: types.Message):
     """Хендлер с фильтром в группе, где можно использовать команду !ban ИЛИ /ban"""
 
@@ -229,8 +242,11 @@ async def ban_user(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("unban", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("unban", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def unban_channel(message: types.Message):
     from_user = message.from_user
     sender_chat = message.reply_to_message.sender_chat
@@ -253,9 +269,7 @@ async def unban_channel(message: types.Message):
     )
     service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
 
-    logging.info(
-        f"Канал @{member_username} был забанен админом @{admin_username}"
-    )
+    logging.info(f"Канал @{member_username} был забанен админом @{admin_username}")
 
     await asyncio.sleep(5)
 
@@ -263,8 +277,11 @@ async def unban_channel(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("unban", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("unban", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def unban_user(message: types.Message):
     """Хендлер с фильтром в группе, где можно использовать команду !unban ИЛИ /unban"""
 
@@ -297,8 +314,11 @@ async def unban_user(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("media_false", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("media_false", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def media_false_handler(message: types.Message):
     (
         admin_username,
@@ -359,8 +379,11 @@ async def media_false_handler(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("media_true", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("media_true", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def media_true_handler(message: types.Message, bot: Bot):
     (
         admin_username,
@@ -391,7 +414,6 @@ async def media_true_handler(message: types.Message, bot: Bot):
         # Если бот не может забрать права пользователя (администратора),
         # возникает ошибка BadRequest которую мы обрабатываем
     except Exception as e:
-
         # Отправляем сообщение
         await message.answer(
             f"Пользователь {member_mentioned} "

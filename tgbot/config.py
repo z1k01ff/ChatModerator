@@ -153,9 +153,7 @@ class OpenAI:
 
     @staticmethod
     def from_env(env):
-        return OpenAI(
-            api_key=env.str("OPENAI_API_KEY")
-        )
+        return OpenAI(api_key=env.str("OPENAI_API_KEY"))
 
 
 @dataclass
@@ -202,5 +200,5 @@ def load_config(path: str = None) -> Config:
         # db=DbConfig.from_env(env),
         # redis=RedisConfig.from_env(env),
         misc=Miscellaneous(),
-        openai=OpenAI.from_env(env)
+        openai=OpenAI.from_env(env),
     )

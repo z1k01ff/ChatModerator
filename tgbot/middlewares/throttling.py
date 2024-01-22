@@ -7,6 +7,7 @@ from aiogram import BaseMiddleware
 from aiogram.dispatcher.flags import get_flag
 from aiogram.types import Message
 
+
 class ThrottlingMiddleware(BaseMiddleware):
     def __init__(self) -> None:
         super().__init__()
@@ -54,4 +55,3 @@ class ThrottlingMiddleware(BaseMiddleware):
 
         # Call the next handler
         return await handler(event, data)
-
