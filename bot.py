@@ -16,6 +16,11 @@ from tgbot.handlers.private.basic import basic_router
 from tgbot.middlewares.config import ConfigMiddleware
 from tgbot.middlewares.database import DatabaseMiddleware
 from tgbot.middlewares.policy_content import OpenAIModerationMiddleware
+from tgbot.middlewares.ratings_cache import (
+    MessageUserMiddleware,
+    RatingCacheMessageMiddleware,
+    RatingCacheReactionMiddleware,
+)
 from tgbot.middlewares.throttling import ThrottlingMiddleware
 from tgbot.misc.default_commands import set_default_commands
 from tgbot.services import broadcaster
@@ -26,8 +31,9 @@ async def on_startup(bot: Bot, admin_ids: list[int]):
     await set_default_commands(bot)
 
 
-def register_global_middlewares(dp: Dispatcher, config: Config, session_pool,
-                                openai_client):
+def register_global_middlewares(
+    dp: Dispatcher, config: Config, session_pool, openai_client
+):
     """
     Register global middlewares for the given dispatcher.
     Global middlewares here are the ones that are applied to all the handlers (you specify the type of update)
@@ -48,6 +54,9 @@ def register_global_middlewares(dp: Dispatcher, config: Config, session_pool,
         dp.callback_query.outer_middleware(middleware_type)
     dp.message.middleware(ThrottlingMiddleware())
     dp.update.outer_middleware(DatabaseMiddleware(session_pool))
+    dp.message.middleware(RatingCacheMessageMiddleware())
+    dp.message_reaction.middleware(RatingCacheReactionMiddleware())
+    dp.message.outer_middleware(MessageUserMiddleware())
 
 
 def setup_logging():

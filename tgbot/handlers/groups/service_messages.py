@@ -30,6 +30,8 @@ async def updated_chat_member(chat_member_updated: types.ChatMemberUpdated,
 
     elif chat_member_updated.new_chat_member.status == ChatMemberStatus.ADMINISTRATOR:
         if chat_member_updated.old_chat_member.status != ChatMemberStatus.ADMINISTRATOR:
+            await repo.chat_admins.add_chat_admin(chat_member_updated.chat.id,
+                                                  chat_member_updated.from_user.id)
             text = f'Пользователь {member_mention} был повышен до статуса Администратора чата с титулом: ' \
                    f'{chat_member_updated.new_chat_member.custom_title or "Без титула"}.'
         else:
@@ -37,6 +39,8 @@ async def updated_chat_member(chat_member_updated: types.ChatMemberUpdated,
 
     elif (chat_member_updated.old_chat_member.status == ChatMemberStatus.ADMINISTRATOR
           and chat_member_updated.new_chat_member.status != ChatMemberStatus.ADMINISTRATOR):
+        await repo.chat_admins.del_chat_admin(chat_member_updated.chat.id,
+                                              chat_member_updated.from_user.id)
         text = f'Администратора {member_mention} понизили до статуса Пользователь'
     else:
         return
