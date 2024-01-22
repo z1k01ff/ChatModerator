@@ -26,14 +26,8 @@ class HasPermissionsFilter(BaseFilter):
         if chat_id not in self.CHAT_ADMINS:
             self.CHAT_ADMINS[chat_id] = await message.chat.get_administrators()
 
-        chat_member: ChatMemberAdministrator = next(
-            (
-                member
-                for member in self.CHAT_ADMINS[chat_id]
-                if member.user.id == user_id
-            ),
-            None,
-        )
+        chat_member: ChatMemberAdministrator = next((member for member in self.CHAT_ADMINS[chat_id] if
+                            member.user.id == user_id), None)
 
         if not chat_member:
             return False  # User not found among chat admins

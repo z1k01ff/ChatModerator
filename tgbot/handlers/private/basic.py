@@ -35,11 +35,8 @@ async def help_cmd(message: types.Message):
 """.format(
         header1=hbold("Основні команди"),
         header2=hbold("Інші команди"),
-        warning=hbold(
-            "У групах функціонал бота може відрізнятися.\n"
-            "* - необов’язковий аргумент"
-        ),
-    )
+        warning=hbold("У групах функціонал бота може відрізнятися.\n"
+                      "* - необов’язковий аргумент"))
 
     # Відправляємо список команд
     await message.answer(text)

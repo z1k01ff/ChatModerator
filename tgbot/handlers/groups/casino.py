@@ -53,7 +53,9 @@ async def win_or_loss(message: types.Message):
         )
 
     except Exception:
-        await message.answer(f"Адміністратор чату {name} виграв у казино {prize}")
+        await message.answer(
+            f"Адміністратор чату {name} виграв у казино {prize}"
+        )
 
         logging.info(
             f"Бот не зміг замутити користувача @{username} ({name})"
@@ -64,3 +66,4 @@ async def win_or_loss(message: types.Message):
             f"Користувачу @{username} ({name}) заборонено писати повідомлення до {until_date} "
             f"з причини: виграв у казино"
         )
+

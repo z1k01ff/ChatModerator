@@ -10,10 +10,12 @@ async def set_default_commands(bot: Bot):
     commands_members = {
         "gay": "Дізнатися, на скільки % користувач гей",
         "biba": "Дізнатися скільки см у користувача біба",
-        "top_helpers": "Дізнатися топ хелперів",
+        "top_helpers": "Дізнатися топ хелперів"
     }
 
-    command_defaults = {"help": "Допоможіть мені"}
+    command_defaults = {
+        'help': 'Допоможіть мені'
+    }
 
     commands_admins = {
         "ro": "Замутити користувача",
@@ -27,27 +29,18 @@ async def set_default_commands(bot: Bot):
         "media_true": "Дозволяє використання медіа",
         "promote": "Підвищити користувача",
         "demote": "Понизити користувача",
-        **commands_members,
+        **commands_members
     }
 
     await bot.set_my_commands(
-        [
-            BotCommand(command=name, description=value)
-            for name, value in command_defaults.items()
-        ],
-        scope=types.BotCommandScopeDefault(),
+        [BotCommand(command=name, description=value) for name, value in command_defaults.items()],
+        scope=types.BotCommandScopeDefault()
     )
     await bot.set_my_commands(
-        [
-            BotCommand(command=name, description=value)
-            for name, value in commands_members.items()
-        ],
-        scope=types.BotCommandScopeAllGroupChats(),
+        [BotCommand(command=name, description=value) for name, value in commands_members.items()],
+        scope=types.BotCommandScopeAllGroupChats()
     )
     await bot.set_my_commands(
-        [
-            BotCommand(command=name, description=value)
-            for name, value in commands_admins.items()
-        ],
-        scope=types.BotCommandScopeAllChatAdministrators(),
+        [BotCommand(command=name, description=value) for name, value in commands_admins.items()],
+        scope=types.BotCommandScopeAllChatAdministrators()
     )
