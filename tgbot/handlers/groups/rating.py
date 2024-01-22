@@ -9,8 +9,10 @@ from aiogram.filters import or_f
 from aiogram.enums import ChatType
 from aiogram.filters import Command
 from async_lru import alru_cache
+from aiogram.utils.markdown import hlink
 
 from infrastructure.database.repo.requests import RequestsRepo
+from tgbot.misc.reaction_change import get_reaction_change
 from tgbot.services.rating import is_rating_cached, change_rating
 
 groups_rating_router = Router()
@@ -90,7 +92,7 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot):
         ]
     )
     text = f"Топ Хелперів:\n{tops}"
-    await m.answer(text)
+    await m.answer(text, disable_notification=True)
 
 
 # Make sure to update the implementation details if necessary
@@ -133,7 +135,7 @@ async def add_rating_handler(m: types.Message, repo: RequestsRepo):
     text = await process_new_rating(
         rating_change, repo, helper_id, mention_from, mention_reply
     )
-    await m.answer(text)
+    await m.answer(text, disable_notification=True)
     await m.react([types.ReactionTypeEmoji(emoji="✍")], is_big=True)
 
 
@@ -144,7 +146,7 @@ async def add_rating_handler(m: types.Message, repo: RequestsRepo):
     F.new_reaction[0].emoji.in_(negative_emojis).as_("negative_rating")
 )
 @flags.override(user_id=362089194)
-@flags.rate_limit(limit=30, key="rating")
+@flags.rate_limit(limit=60, key="rating")
 async def add_reaction_rating_handler(
     reaction: types.MessageReactionUpdated,
     repo: RequestsRepo,
@@ -152,7 +154,19 @@ async def add_reaction_rating_handler(
     positive_rating: bool | None = None,
     negative_rating: bool | None = None,
 ):
-    rating_change = 1 if reaction.new_reaction[0].emoji in positive_emojis else -1
+    reaction_change = get_reaction_change(
+        new_reaction=reaction.new_reaction, old_reaction=reaction.old_reaction
+    )
+    rating_change = (
+        1
+        if reaction_change == "positive"
+        else -1
+        if reaction_change == "negative"
+        else 0
+    )
+
+    if not rating_change:
+        return
 
     helper_id = await repo.message_user.get_user_id_by_message_id(
         reaction.chat.id, reaction.message_id
@@ -172,7 +186,7 @@ async def add_reaction_rating_handler(
         reaction.user.mention_html(reaction.user.first_name),
         helper.user.mention_html(helper.user.first_name),
     )
-    await bot.send_message(reaction.chat.id, text)
+    await bot.send_message(reaction.chat.id, text, disable_notification=True)
 
 
 @alru_cache(maxsize=10)
@@ -182,4 +196,4 @@ async def get_profile(chat_id, bot) -> str:
         chat = await bot.get_chat(chat_id)
     except Exception:
         return "Відсутній"
-    return chat.full_name
+    return hlink(title=chat.full_name, url=f"tg://user?id={chat_id}")

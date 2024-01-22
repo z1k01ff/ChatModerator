@@ -1,11 +1,13 @@
 import logging
-from typing import Callable, Dict, Any, Awaitable
+from re import U
+from typing import Callable, Dict, Any, Awaitable, Union
 import asyncio
 from datetime import datetime, timedelta
 
 from aiogram import BaseMiddleware
 from aiogram.dispatcher.flags import get_flag
-from aiogram.types import Message
+from aiogram.types import Message, MessageReactionUpdated
+
 
 class ThrottlingMiddleware(BaseMiddleware):
     def __init__(self) -> None:
@@ -14,11 +16,19 @@ class ThrottlingMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
-        event: Message,
+        handler: Callable[
+            [Union[Message, MessageReactionUpdated], Dict[str, Any]], Awaitable[Any]
+        ],
+        event: Union[Message, MessageReactionUpdated],
         data: Dict[str, Any],
     ) -> Any:
-        user_id = event.from_user.id
+        if isinstance(event, Message):
+            user_id = event.from_user.id
+        elif isinstance(event, MessageReactionUpdated):
+            user_id = event.user.id
+        else:
+            return await handler(event, data)
+
         now = datetime.now()
 
         rate_limit = get_flag(data, "rate_limit")
@@ -41,7 +51,8 @@ class ThrottlingMiddleware(BaseMiddleware):
             if now - last_time < timedelta(seconds=limit):
                 if throttle_count == 0:
                     # User is sending messages too quickly
-                    await event.answer("Занадто часто!")
+                    if isinstance(event, Message):
+                        await event.answer("Занадто часто!")
 
                     self.users[key] = (now, throttle_count + 1)
                     return
@@ -54,4 +65,3 @@ class ThrottlingMiddleware(BaseMiddleware):
 
         # Call the next handler
         return await handler(event, data)
-

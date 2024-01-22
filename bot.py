@@ -53,6 +53,7 @@ def register_global_middlewares(
         dp.message.outer_middleware(middleware_type)
         dp.callback_query.outer_middleware(middleware_type)
     dp.message.middleware(ThrottlingMiddleware())
+    dp.message_reaction.middleware(ThrottlingMiddleware())
     dp.update.outer_middleware(DatabaseMiddleware(session_pool))
     dp.message.middleware(RatingCacheMessageMiddleware())
     dp.message_reaction.middleware(RatingCacheReactionMiddleware())
