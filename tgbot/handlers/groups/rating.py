@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from math import log
+from operator import neg
 import re
 
 from aiogram import Bot, types, Router, F, flags
@@ -146,9 +147,9 @@ async def add_reaction_rating_handler(
     reaction: types.MessageReactionUpdated,
     repo: RequestsRepo,
     bot: Bot,
-    positive_rating: bool | None = None,
 ):
-    rating_change = 1 if positive_rating else -1
+    rating_change = 1 if reaction.new_reaction[0].emoji in positive_emojis else -1
+
     helper_id = await repo.message_user.get_user_id_by_message_id(
         reaction.chat.id, reaction.message_id
     )
