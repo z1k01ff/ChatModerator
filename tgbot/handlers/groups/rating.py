@@ -135,8 +135,10 @@ async def add_rating_handler(m: types.Message, repo: RequestsRepo):
     text = await process_new_rating(
         rating_change, repo, helper_id, mention_from, mention_reply
     )
-    await m.answer(text, disable_notification=True)
     await m.react([types.ReactionTypeEmoji(emoji="✍")], is_big=True)
+    notification = await m.answer(text, disable_notification=True)
+    await asyncio.sleep(5)
+    await notification.delete()
 
 
 @groups_rating_router.message_reaction(
@@ -186,7 +188,11 @@ async def add_reaction_rating_handler(
         reaction.user.mention_html(reaction.user.first_name),
         helper.user.mention_html(helper.user.first_name),
     )
-    await bot.send_message(reaction.chat.id, text, disable_notification=True)
+    notification = await bot.send_message(
+        reaction.chat.id, text, disable_notification=True
+    )
+    await asyncio.sleep(5)
+    await notification.delete()
 
 
 @alru_cache(maxsize=10)
