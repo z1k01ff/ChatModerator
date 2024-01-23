@@ -18,8 +18,8 @@ from tgbot.services.rating import is_rating_cached, change_rating
 groups_rating_router = Router()
 groups_rating_router.message.filter(F.chat.type == ChatType.SUPERGROUP)
 
-positive_emojis = ["👍", "❤", "🔥", "🥰", "😍", "💯", "🤗", "😘", "🤝", "✍", "❤‍🔥"]
-negative_emojis = ["👎", "🤮", "💩", "🖕", "🤡"]
+positive_emojis = ["👍", "❤", "🔥", "❤‍🔥"]
+negative_emojis = ["👎"]
 
 ratings = {
     "+": 1,
@@ -77,14 +77,14 @@ async def process_new_rating(
 @flags.rate_limit(limit=30, key="top_helpers")
 @flags.override(user_id=362089194)
 async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot):
-    helpers = await repo.rating_users.get_top_by_rating()
+    helpers = await repo.rating_users.get_top_by_rating(20)
     emoji_for_top = ["🦕", "🐙", "🐮", "🐻", "🐼", "🐰", "🦊", "🦁", "🙈", "🐤", "🐸"]
 
-    helpers = [(user_id, rating) for user_id, rating in helpers if rating > 0]
+    helpers = [(user_id, rating) for user_id, rating in helpers]
 
     tops = "\n".join(
         [
-            f"<b>{number}) {emoji_for_top[number - 1]} "
+            f"<b>{number}) {emoji_for_top[number - 1] if number <= len(emoji_for_top) else ''} "
             f"{await get_profile(user_id, bot)} "
             f"( {rating} )"
             f"</b>"
@@ -132,13 +132,10 @@ async def add_rating_handler(m: types.Message, repo: RequestsRepo):
         mention_reply = m.from_user.mention_html(m.from_user.first_name)
 
     rating_change = ratings.get(m.text, 1)  # type: ignore
-    text = await process_new_rating(
+    await process_new_rating(
         rating_change, repo, helper_id, mention_from, mention_reply
     )
     await m.react([types.ReactionTypeEmoji(emoji="✍")], is_big=True)
-    notification = await m.answer(text, disable_notification=True)
-    await asyncio.sleep(5)
-    await notification.delete()
 
 
 @groups_rating_router.message_reaction(
@@ -188,11 +185,11 @@ async def add_reaction_rating_handler(
         reaction.user.mention_html(reaction.user.first_name),
         helper.user.mention_html(helper.user.first_name),
     )
-    notification = await bot.send_message(
-        reaction.chat.id, text, disable_notification=True
-    )
-    await asyncio.sleep(5)
-    await notification.delete()
+    # notification = await bot.send_message(
+    # reaction.chat.id, text, disable_notification=True
+    # )
+    # await asyncio.sleep(5)
+    # await notification.delete()
 
 
 @alru_cache(maxsize=10)

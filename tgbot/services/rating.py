@@ -21,7 +21,7 @@ def is_rating_cached(
 
 async def change_rating(helper_id: int, change: int, repo: RequestsRepo) -> int:
     current_rating = await repo.rating_users.get_rating_by_user_id(helper_id)
-    if not current_rating:
+    if current_rating is None:
         await repo.rating_users.add_user_for_rating(helper_id, change)
         return change
 
