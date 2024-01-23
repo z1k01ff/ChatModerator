@@ -50,15 +50,14 @@ class ThrottlingMiddleware(BaseMiddleware):
             last_time, throttle_count = self.users[key]
             if now - last_time < timedelta(seconds=limit):
                 if throttle_count == 0:
-                    # User is sending messages too quickly
                     if isinstance(event, Message):
                         await event.answer("Занадто часто!")
-
                     self.users[key] = (now, throttle_count + 1)
                     return
-                else:
-                    self.users[key] = (now, 0)  # Reset the throttle count
+                # Increase the throttle count instead of resetting it
+                self.users[key] = (now, throttle_count + 1)
             else:
+                # Reset throttle count only if time limit has passed
                 self.users[key] = (now, 0)
         else:
             self.users[key] = (now, 0)
