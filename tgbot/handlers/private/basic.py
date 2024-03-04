@@ -1,4 +1,4 @@
-from aiogram import types, Router, F
+from aiogram import F, Router, types
 from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.markdown import hbold
@@ -16,7 +16,7 @@ async def start(message: types.Message):
         "Я простий чат-менеджер з відкритим вихідним кодом, "
         "який пишеться учасниками чату з розробки ботів. "
         "Для повного функціоналу додай мене до групи ",
-        reply_markup=start_markup,
+        reply_markup=start_markup(),
     )
 
 
@@ -35,8 +35,11 @@ async def help_cmd(message: types.Message):
 """.format(
         header1=hbold("Основні команди"),
         header2=hbold("Інші команди"),
-        warning=hbold("У групах функціонал бота може відрізнятися.\n"
-                      "* - необов’язковий аргумент"))
+        warning=hbold(
+            "У групах функціонал бота може відрізнятися.\n"
+            "* - необов’язковий аргумент"
+        ),
+    )
 
     # Відправляємо список команд
     await message.answer(text)

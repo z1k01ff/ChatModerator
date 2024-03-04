@@ -1,10 +1,13 @@
-from aiogram import types, Router, F
+from aiogram import F, Router, types
 from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.markdown import hbold
 
-
 groups_basic_router = Router()
+
+groups_basic_router.message.filter(
+    F.chat.type.in_([ChatType.GROUP, ChatType.SUPERGROUP])
+)
 
 
 @groups_basic_router.message(CommandStart())
@@ -49,8 +52,8 @@ async def help_cmd(message: types.Message):
         warning=hbold(
             "У групах функціонал бота може відрізнятися.\n"
             "* - необов’язковий аргумент"
-        )
+        ),
     )
 
     # Відправляємо список команд
-    await message.answer(text)
+    await message.reply(text=text)

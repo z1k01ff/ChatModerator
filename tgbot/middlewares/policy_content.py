@@ -1,18 +1,18 @@
-import datetime
-import logging
-from typing import Dict, Any, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Dict
 
-from aiogram import types, BaseMiddleware
+from aiogram import BaseMiddleware, types
 from openai import AsyncOpenAI
+
+from tgbot.services.rating import change_rating
 
 
 class OpenAIModerationMiddleware(BaseMiddleware):
     warning_messages = {
-        "hate": "Увага: Ваше повідомлення містить елементи ненависті. Будь ласка, утримайтеся від таких висловлювань. Якщо будете продовжувати, Вас можуть заблокувати",
-        "hate/threatening": "Увага: Ваше повідомлення містить погрози та домагання. Не допускайте такої поведінки. Якщо будете продовжувати, Вас можуть заблокувати",
-        "violence/graphic": "Увага: Ваше повідомлення містить ознаки насильства. Такі повідомлення неприпустимі. Якщо будете продовжувати, Вас можуть заблокувати.",
-        "harassment/threatening": "Увага: Ваше повідомлення містить погрози та домагання. Не допускайте такої поведінки. Якщо будете продовжувати, Вас можуть заблокувати",
-        "violence": "Увага: Ваше повідомлення містить насильство. Будь ласка, дотримуйтеся правил спільноти. Якщо будете продовжувати, Вас можуть заблокувати",
+        "hate": "Увага: Ваше повідомлення містить елементи ненависті. Будь ласка, утримайтеся від таких висловлювань.\n\n⚠️Ваш соціальний рейтинг був знижений на 1.",
+        "hate/threatening": "Увага: Ваше повідомлення містить погрози та домагання. Не допускайте такої поведінки.\n\n⚠️Ваш соціальний рейтинг був знижений на 1.",
+        "violence/graphic": "Увага: Ваше повідомлення містить ознаки насильства. Такі повідомлення неприпустимі.\n\n⚠️Ваш соціальний рейтинг був знижений на 1.",
+        "harassment/threatening": "Увага: Ваше повідомлення містить погрози та домагання. Не допускайте такої поведінки.\n\n⚠️Ваш соціальний рейтинг був знижений на 1.",
+        "violence": "Увага: Ваше повідомлення містить насильство. Будь ласка, дотримуйтеся правил спільноти.\n\n⚠️Ваш соціальний рейтинг був знижений на 1.",
     }
 
     def __init__(self, openai_client: AsyncOpenAI):
@@ -21,10 +21,10 @@ class OpenAIModerationMiddleware(BaseMiddleware):
         self.warned_users = dict()
 
     async def __call__(
-            self,
-            handler: Callable[[types.Message, Dict[str, Any]], Awaitable[Any]],
-            event: types.Message,
-            data: Dict[str, Any],
+        self,
+        handler: Callable[[types.Message, Dict[str, Any]], Awaitable[Any]],
+        event: types.Message,
+        data: Dict[str, Any],
     ) -> Any:
         if not isinstance(event, types.Message) or not event.text:
             return await handler(event, data)
@@ -47,11 +47,16 @@ class OpenAIModerationMiddleware(BaseMiddleware):
                     if times_violated == 1:
                         await event.reply(text)
                     elif times_violated == 3:
-                        await event.reply("Увага: Ви продовжуєте порушувати правила спільноти. Якщо будете продовжувати, Вас можуть заблокувати")
+                        await event.reply(
+                            "Увага: Ви продовжуєте токсично себе поводити. \n\n⚠️Ваш соціальний рейтинг був знижений на 3."
+                        )
+                        await change_rating(user_id, -2, data["repo"])
 
                     elif self.warned_users[user_id]["times"] > 4:
-                        await event.chat.restrict(user_id, permissions=types.ChatPermissions(can_send_messages=False), until_date=datetime.timedelta(hours=1))
-                        await event.reply("Ви були заблоковані за порушення правил спільноти на 1 годину")
+                        await event.reply(
+                            "За неодноразове порушення правил. \n\n⚠️Ваш рейтинг був знижений на 5."
+                        )
+                        await change_rating(user_id, -5, data["repo"])
                         # clear the user from the dict
                         del self.warned_users[user_id]
 
