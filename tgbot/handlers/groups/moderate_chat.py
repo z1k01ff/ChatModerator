@@ -3,14 +3,17 @@ import datetime
 import logging
 import re
 
-from aiogram import types, Bot, F, Router
+from aiogram import Bot, F, Router, types
 from aiogram.filters import Command
 
 from tgbot.filters.permissions import HasPermissionsFilter
-from tgbot.misc.permissions import set_user_ro_permissions, \
-    set_new_user_approved_permissions, set_no_media_permissions
+from tgbot.misc.permissions import (
+    set_new_user_approved_permissions,
+    set_no_media_permissions,
+    set_user_ro_permissions,
+)
 
-restriction_time_regex = re.compile(r'(\b[1-9][0-9]*)([mhds]\b)')
+restriction_time_regex = re.compile(r"(\b[1-9][0-9]*)([mhds]\b)")
 
 groups_moderate_router = Router()
 
@@ -40,9 +43,12 @@ def get_restriction_period(text: str) -> int:
     return 0
 
 
-@groups_moderate_router.message(Command("ro", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
-async def read_only_mode(message: types.Message):
+@groups_moderate_router.message(
+    Command("ro", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
+async def read_only_mode(message: types.Message, bot: Bot):
     """Хендлер с фильтром в группе, где можно использовать команду !ro ИЛИ /ro
     :time int: время на которое нужно замутить пользователя в минутах
     :reason str: причина мута. При отсутствии времени и/или причины, то
@@ -63,15 +69,38 @@ async def read_only_mode(message: types.Message):
     ) = get_members_info(message)
 
     # Разбиваем команду на аргументы с помощью RegExp
-    command_parse = re.compile(r"(!ro|/ro) ?(\b[1-9][0-9]\w)? ?([\w+\D]+)?")
+
+    # Revised regular expression to capture duration and reason
+    command_parse = re.compile(r"(?:!ro|/ro)\s*(\d+[mhMH]?)?\s*(\S.*)")
+
+    # Match the command against the input text
     parsed = command_parse.match(message.text)
-    reason = parsed.group(3)
     # Проверяем на наличие и корректность срока RO.
     # Проверяем на наличие причины.
-    reason = "без указания причины" if not reason else f"по причине: {reason}"
-    # Получаем конечную дату, до которой нужно замутить
-    ro_period = get_restriction_period(message.text)
-    ro_end_date = message.date + datetime.timedelta(seconds=ro_period)
+    # reason = "без указания причины" if not reason else f"по причине: {reason}"
+
+    if parsed:
+        duration = parsed.group(1)  # This captures the duration
+        reason = parsed.group(2)  # This captures the reason
+
+        # Default values if not specified
+        if not duration:
+            duration = "5m"  # Default duration of 5 minutes if not specified
+        if not reason:
+            reason = "просто так"  # Default reason if not specified
+        else:
+            reason = f"в наслідок: {reason}"
+        # Convert duration to seconds
+        ro_period = get_restriction_period(
+            duration
+        )  # Implement this function based on your needs
+
+        # Calculate the end date/time for the mute
+        ro_end_date = message.date + datetime.timedelta(seconds=ro_period)
+    else:
+        ro_period = 300
+        ro_end_date = message.date + datetime.timedelta(seconds=ro_period)
+        reason = "просто так"
 
     try:
         # Пытаемся забрать права у пользователя
@@ -83,9 +112,8 @@ async def read_only_mode(message: types.Message):
 
         # Отправляем сообщение
         await message.answer(
-            f"Пользователю {member_mentioned} "
-            f"было запрещено писать до {ro_end_date.strftime('%d.%m.%Y %H:%M')} "
-            f"администратором {admin_mentioned} {reason} "
+            f"Користувачу {member_mentioned} було заборонено писати до {ro_end_date.strftime('%d.%m.%Y %H:%M')} "
+            f"адміністратором {admin_mentioned} {reason}"
         )
 
         # Вносим информацию о муте в лог
@@ -96,16 +124,45 @@ async def read_only_mode(message: types.Message):
     # Если бот не может замутить пользователя (администратора), возникает ошибка BadRequest которую мы обрабатываем
     except Exception as e:
         logging.exception(e)
+        chat_member = await message.chat.get_member(member_id)
+        administrator = await message.chat.get_member(message.from_user.id)
+        if chat_member.status == "administrator" and administrator.status == "creat":
+            await message.chat.promote(
+                user_id=member_id,
+                is_anonymous=False,
+                can_manage_chat=False,
+                can_delete_messages=False,
+                can_manage_video_chats=False,
+                can_restrict_members=False,
+                can_promote_members=False,
+                can_change_info=False,
+                can_invite_users=False,
+                can_post_messages=False,
+                can_edit_messages=False,
+                can_pin_messages=False,
+                can_post_stories=False,
+                can_edit_stories=False,
+                can_delete_stories=False,
+                can_manage_topics=False,
+            )
+            await message.chat.restrict(
+                user_id=member_id,
+                permissions=set_user_ro_permissions(),
+                until_date=ro_end_date,
+            )
+
+            await message.answer(
+                f"Користувачу було заборонено писати до {ro_end_date.strftime('%d.%m.%Y %H:%M')} "
+                f"адміністратором {admin_mentioned} {reason}. Також, користувач був понижений до рівня учасника"
+            )
+
         # Отправляем сообщение
         await message.answer(
-            f"Пользователь {member_mentioned} "
-            "является администратором чата, я не могу выдать ему RO"
+            f"Користувач {member_mentioned} є адміністратором чату, я не можу заборонити йому писати"
         )
         # Вносим информацию о муте в лог
         logging.info(f"Бот не смог замутить пользователя @{member_username}")
-    service_message = await message.reply(
-        'Сообщение самоуничтожится через 5 секунд.'
-    )
+    service_message = await message.answer("Повідомлення самознищиться за 5 секунд.")
 
     await asyncio.sleep(5)
     # после прошедших 5 секунд, бот удаляет сообщение от администратора и от самого бота
@@ -114,8 +171,11 @@ async def read_only_mode(message: types.Message):
     await message.reply_to_message.delete()
 
 
-@groups_moderate_router.message(Command("unro", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("unro", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def undo_read_only_mode(message: types.Message, bot: Bot):
     """Хендлер с фильтром в группе, где можно использовать команду !unro ИЛИ /unro"""
     (
@@ -136,9 +196,11 @@ async def undo_read_only_mode(message: types.Message, bot: Bot):
 
     # Информируем об этом
     await message.answer(
-        f"Пользователь {member_mentioned} был размучен администратором {admin_mentioned}"
+        # f"Пользователь {member_mentioned} был размучен администратором {admin_mentioned}"
+        f"Користувач {member_mentioned} був розблокований адміністратором {admin_mentioned}"
     )
-    service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
+    # service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
+    service_message = await message.reply("Повідомлення самознищиться за 5 секунд.")
 
     # Не забываем про лог
     logging.info(
@@ -153,9 +215,12 @@ async def undo_read_only_mode(message: types.Message, bot: Bot):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("ban", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True),
-                                F.reply_to_message.sender_chat)
+@groups_moderate_router.message(
+    Command("ban", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+    F.reply_to_message.sender_chat,
+)
 async def ban_channel(message: types.Message):
     from_user = message.from_user
     sender_chat = message.reply_to_message.sender_chat
@@ -170,15 +235,18 @@ async def ban_channel(message: types.Message):
         await message.chat.ban_sender_chat(member_id)
 
         await message.answer(
-            f"Канал {member_fullname} был успешно забанен администратором {admin_mentioned}\n"
-            f"Теперь владелец канала не сможет писать от имени любого из своих каналов"
+            # f"Канал {member_fullname} был успешно забанен администратором {admin_mentioned}\n"
+            # f"Теперь владелец канала не сможет писать от имени любого из своих каналов"
+            f"Канал {member_fullname} був заблокований адміністратором {admin_mentioned}\n"
+            f"Тепер власник каналу не зможе писати від імені будь-якого зі своїх каналів"
         )
 
         logging.info(f"Канал {member_fullname} был забанен админом {admin_fullname}")
-    except Exception as e:
+    except Exception:
         logging.info(f"Бот не смог забанить канал {member_fullname}")
 
-    service_message = await message.answer("Сообщение самоуничтожится через 5 секунд.")
+    # service_message = await message.answer("Сообщение самоуничтожится через 5 секунд.")
+    service_message = await message.answer("Повідомлення самознищиться за 5 секунд.")
 
     await asyncio.sleep(5)
 
@@ -187,8 +255,11 @@ async def ban_channel(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("ban", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("ban", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def ban_user(message: types.Message):
     """Хендлер с фильтром в группе, где можно использовать команду !ban ИЛИ /ban"""
 
@@ -203,7 +274,7 @@ async def ban_user(message: types.Message):
         await message.chat.ban(user_id=member_id)
         # Информируем об этом
         await message.answer(
-            f"Пользователь {member_mentioned} был успешно забанен администратором {admin_mentioned}"
+            f"Користувач {member_mentioned} був заблокований адміністратором {admin_mentioned}"
         )
         # Об успешном бане информируем разработчиков в лог
         logging.info(
@@ -213,13 +284,13 @@ async def ban_user(message: types.Message):
         # Отправляем сообщение
         logging.exception(e)
         await message.answer(
-            f"Пользователь {member_mentioned} "
-            "является администратором чата, я не могу выдать ему RO"
+            f"Користувач {member_mentioned} є адміністратором чату, я не можу заблокувати його"
         )
 
         logging.info(f"Бот не смог забанить пользователя {member_fullname}")
 
-    service_message = await message.answer("Сообщение самоуничтожится через 5 секунд.")
+    # service_message = await message.answer("Сообщение самоуничтожится через 5 секунд.")
+    service_message = await message.answer("Повідомлення самознищиться за 5 секунд.")
 
     # После чего засыпаем на 5 секунд
     await asyncio.sleep(5)
@@ -229,8 +300,11 @@ async def ban_user(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("unban", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("unban", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def unban_channel(message: types.Message):
     from_user = message.from_user
     sender_chat = message.reply_to_message.sender_chat
@@ -248,14 +322,15 @@ async def unban_channel(message: types.Message):
         return
 
     await message.answer(
-        f"Канал {member_mentioned} был разбанен администратором {admin_mentioned}\n"
-        f"Теперь владелец канала сможет писать от имени любого из своих каналов"
+        # f"Канал {member_mentioned} был разбанен администратором {admin_mentioned}\n"
+        # f"Теперь владелец канала сможет писать от имени любого из своих каналов"
+        f"Канал {member_mentioned} був розблокований адміністратором {admin_mentioned}\n"
+        f"Тепер власник каналу зможе писати від імені будь-якого зі своїх каналів"
     )
-    service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
+    # service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
+    service_message = await message.reply("Повідомлення самознищиться за 5 секунд.")
 
-    logging.info(
-        f"Канал @{member_username} был забанен админом @{admin_username}"
-    )
+    logging.info(f"Канал @{member_username} был забанен админом @{admin_username}")
 
     await asyncio.sleep(5)
 
@@ -263,8 +338,11 @@ async def unban_channel(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("unban", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("unban", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def unban_user(message: types.Message):
     """Хендлер с фильтром в группе, где можно использовать команду !unban ИЛИ /unban"""
 
@@ -280,9 +358,11 @@ async def unban_user(message: types.Message):
 
     # Пишем в чат
     await message.answer(
-        f"Пользователь {member_mentioned} был разбанен администратором {admin_mentioned}"
+        # f"Пользователь {member_mentioned} был разбанен администратором {admin_mentioned}"
+        f"Користувач {member_mentioned} був розблокований адміністратором {admin_mentioned}"
     )
-    service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
+    # service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
+    service_message = await message.reply("Повідомлення самознищиться за 5 секунд.")
 
     # Пауза 5 сек
     await asyncio.sleep(5)
@@ -297,8 +377,11 @@ async def unban_user(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("media_false", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("media_false", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def media_false_handler(message: types.Message):
     (
         admin_username,
@@ -340,7 +423,7 @@ async def media_false_handler(message: types.Message):
         )
     # Если бот не может изменить права пользователя (администратора),
     # возникает ошибка BadRequest которую мы обрабатываем
-    except Exception as err:
+    except Exception:
         # Отправляем сообщение
         await message.answer(
             f"Пользователь {member_mentioned} "
@@ -359,8 +442,11 @@ async def media_false_handler(message: types.Message):
     await service_message.delete()
 
 
-@groups_moderate_router.message(Command("media_true", prefix="/!"), F.reply_to_message,
-                                HasPermissionsFilter(can_restrict_members=True))
+@groups_moderate_router.message(
+    Command("media_true", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_restrict_members=True),
+)
 async def media_true_handler(message: types.Message, bot: Bot):
     (
         admin_username,
@@ -390,7 +476,7 @@ async def media_true_handler(message: types.Message, bot: Bot):
 
         # Если бот не может забрать права пользователя (администратора),
         # возникает ошибка BadRequest которую мы обрабатываем
-    except Exception as e:
+    except Exception:
 
         # Отправляем сообщение
         await message.answer(
@@ -400,8 +486,154 @@ async def media_true_handler(message: types.Message, bot: Bot):
         # Вносим информацию о муте в лог
         logging.error(f"Бот не смог вернуть права пользователю @{member_username}")
 
-    service_message = await message.reply(f"Сообщение самоуничтожится через 5 секунд.")
+    service_message = await message.reply("Сообщение самоуничтожится через 5 секунд.")
     await asyncio.sleep(5)
     await message.delete()
     await service_message.delete()
     await message.reply_to_message.delete()
+
+
+# handler to promote and demoate users with optional arg for their custom title
+@groups_moderate_router.message(
+    Command("promote", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_promote_members=True),
+)
+async def promote_user(message: types.Message, bot: Bot):
+    admin_username = message.from_user.username
+    admin_mentioned = message.from_user.mention_html()
+    member_id = message.reply_to_message.from_user.id
+    member_username = message.reply_to_message.from_user.username
+    member_mentioned = message.reply_to_message.from_user.mention_html()
+
+    command_parse = re.compile(r"(!promote|/promote)( [\w+\D]+)?")
+    parsed = command_parse.match(message.text)
+    custom_title = parsed.group(2)
+
+    try:
+        await message.chat.promote(
+            user_id=member_id,
+            can_delete_messages=True,
+            can_restrict_members=True,
+            can_promote_members=True,
+            can_invite_users=True,
+            can_pin_messages=True,
+            custom_title=custom_title,
+        )
+        text = f"Користувач {member_mentioned} був підвищений до адміністратора адміністратором {admin_mentioned}"
+        if custom_title:
+            text += f" з посадою: {custom_title}"
+            await bot.set_chat_administrator_custom_title(
+                chat_id=message.chat.id, user_id=member_id, custom_title=custom_title
+            )
+        await message.answer(text)
+        logging.info(
+            f"Користувач @{member_username} був підвищений до адміністратора адміном @{admin_username}"
+        )
+    except Exception as e:
+        logging.exception(e)
+        await message.answer(
+            f"Відбулася помилка під час підвищення користувача {member_mentioned} до адміністратора: {e}"
+        )
+        logging.info(f"Бот не зміг підвищити користувача @{member_username}")
+
+        service_message = await message.reply(
+            "Повідомлення самознищиться через 5 секунд."
+        )
+        await asyncio.sleep(5)
+        await message.delete()
+        await service_message.delete()
+
+
+# another handler to promote with custom title, allowing only can_invite_users
+@groups_moderate_router.message(
+    Command("title", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_promote_members=True),
+)
+async def promote_with_title(message: types.Message):
+    admin_username = message.from_user.username
+    admin_mentioned = message.from_user.mention_html()
+    member_id = message.reply_to_message.from_user.id
+    member_username = message.reply_to_message.from_user.username
+    member_mentioned = message.reply_to_message.from_user.mention_html()
+
+    command_parse = re.compile(r"(!title|/title)( [\w+\D]+)?")
+    parsed = command_parse.match(message.text)
+    custom_title = parsed.group(2)
+
+    try:
+        chat_member = await message.chat.get_member(member_id)
+        if chat_member.status == "administrator":
+            text = f"Користувачу {member_mentioned} було змінено посаду на {custom_title} адміністратором {admin_mentioned}"
+            await message.chat.set_administrator_custom_title(
+                user_id=member_id, custom_title=custom_title
+            )
+        else:
+            text = f"Користувач {member_mentioned} був підвищений до адміністратора адміністратором {admin_mentioned} з посадою: {custom_title}"
+            await message.chat.promote(
+                user_id=member_id,
+                can_invite_users=True,
+            )
+            await message.chat.set_administrator_custom_title(
+                user_id=member_id, custom_title=custom_title
+            )
+        await message.answer(text)
+        logging.info(
+            f"Користувач @{member_username} був підвищений до адміністратора адміном @{admin_username}"
+        )
+    except Exception as e:
+        logging.exception(e)
+        await message.answer(
+            f"Відбулася помилка під час підвищення користувача {member_mentioned} до адміністратора: {e}"
+        )
+        logging.info(f"Бот не зміг підвищити користувача @{member_username}")
+
+        service_message = await message.reply(
+            "Повідомлення самознищиться через 5 секунд."
+        )
+        await asyncio.sleep(5)
+        await message.delete()
+        await service_message.delete()
+
+
+@groups_moderate_router.message(
+    Command("demote", prefix="/!"),
+    F.reply_to_message,
+    HasPermissionsFilter(can_promote_members=True),
+)
+async def demote_user(message: types.Message):
+    admin_username = message.from_user.username
+    admin_mentioned = message.from_user.mention_html()
+    member_id = message.reply_to_message.from_user.id
+    member_username = message.reply_to_message.from_user.username
+    member_mentioned = message.reply_to_message.from_user.mention_html()
+
+    try:
+        await message.chat.promote(
+            user_id=member_id,
+            can_invite_users=False,
+            can_pin_messages=False,
+            can_promote_members=False,
+            can_restrict_members=False,
+            can_delete_messages=False,
+        )
+        await message.answer(
+            f"Користувач {member_mentioned} був понижений до учасника адміністратором {admin_mentioned}"
+        )
+        logging.info(
+            f"Користувач @{member_username} був понижений до учасника адміном @{admin_username}"
+        )
+    except Exception as e:
+        logging.exception(e)
+        await message.answer(
+            f"Відбулася помилка під час пониження користувача {member_mentioned} до учасника: {e}"
+        )
+        logging.info(f"Бот не зміг понизити користувача @{member_username}")
+
+        service_message = await message.reply(
+            "Повідомлення самознищиться через 5 секунд."
+        )
+        await asyncio.sleep(5)
+        await message.delete()
+        await service_message.delete()

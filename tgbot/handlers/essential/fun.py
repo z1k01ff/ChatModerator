@@ -5,7 +5,7 @@ import random
 import re
 from random import randint
 
-from aiogram import types, Router, flags
+from aiogram import Router, flags, types
 from aiogram.filters import Command
 
 from tgbot.misc.parse_numbers import generate_num
@@ -15,31 +15,69 @@ fun_router = Router()
 
 def determine_gender(name):
     # Lists of explicit names
-    woman_names = ['Настенька']
+    woman_names = ["Настенька"]
 
     # Women name endings
-    women_name_endings = '|'.join([
-        'sa', 'са', 'ta', 'та', 'ша', 'sha', 'на', 'na', 'ия', 'ia',  # existing
-        'va', 'ва', 'ya', 'я', 'ina', 'ина', 'ka', 'ка', 'la', 'ла',  # Slavic languages
-        'ra', 'ра', 'sia', 'сия', 'ga', 'га', 'da', 'да', 'nia', 'ния',
-        # Slavic languages
-        'lie', 'ly', 'lee', 'ley', 'la', 'le', 'ette', 'elle', 'anne'  # English language
-    ])
+    women_name_endings = "|".join(
+        [
+            "sa",
+            "са",
+            "ta",
+            "та",
+            "ша",
+            "sha",
+            "на",
+            "na",
+            "ия",
+            "ia",  # existing
+            "va",
+            "ва",
+            "ya",
+            "я",
+            "ina",
+            "ина",
+            "ka",
+            "ка",
+            "la",
+            "ла",  # Slavic languages
+            "ra",
+            "ра",
+            "sia",
+            "сия",
+            "ga",
+            "га",
+            "da",
+            "да",
+            "nia",
+            "ния",
+            # Slavic languages
+            "lie",
+            "ly",
+            "lee",
+            "ley",
+            "la",
+            "le",
+            "ette",
+            "elle",
+            "anne",  # English language
+        ]
+    )
 
     # Check explicit list and name suffixes
-    if name in woman_names or re.search(f'\w*({women_name_endings})(\W|$)', name,
-                                        re.IGNORECASE):
-        return 'woman'
+    if name in woman_names or re.search(
+        f"\w*({women_name_endings})(\W|$)", name, re.IGNORECASE
+    ):
+        return "woman"
     else:
-        return 'man'
+        return "man"
 
 
 def select_emoji(length, is_biba):
     # Emojis for bibas, from smallest to largest
-    biba_emojis = ['🥒', '🍌', '🌽', '🥖', '🌵', '🌴']
+    biba_emojis = ["🥒", "🍌", "🌽", "🥖", "🌵", "🌴"]
 
     # Emojis for breasts, from smallest to largest
-    breast_emojis = ['🍓', '🍊', '🍎', '🥭', '🍉', '🎃']
+    breast_emojis = ["🍓", "🍊", "🍎", "🥭", "🍉", "🎃"]
 
     # Select the appropriate list of emojis
     emojis = biba_emojis if is_biba else breast_emojis
@@ -66,29 +104,40 @@ async def gay(message: types.Message):
     """
     # Reference the original message's author if it's a reply; otherwise, the command user.
 
-    target = message.reply_to_message.from_user.mention_html() if message.reply_to_message else message.from_user.mention_html()
+    target = (
+        message.reply_to_message.from_user.mention_html()
+        if message.reply_to_message
+        else message.from_user.mention_html()
+    )
 
     percentage = randint(0, 100)
 
     # these are a little cringy but doesn't matter
-    phrases = [
-        "🌈 Виглядає, що сьогодні {username} на {percentage}% гей — жартуємо з любов'ю!",
-        "🌈 Сьогодні {username} може бути {percentage}% лесбійка, святкуємо різноманітність!",
-        "🌈 {username} виглядає на {percentage}% бісексуал сьогодні, які пригоди чекають?",
-        "🌈 Сьогоднішній дух {username} - {percentage}% трансгендер, вітаємо усі кольори веселки!",
-        "🌈 За шкалою квір-енергії {username} на {percentage}%, яскраво і гордо!",
-        "🌈 Чи знаєте ви, що {username} сьогодні на {percentage}% асексуал? Розкриваємо таємниці!",
-        "🌈 Пансексуальні вібрації {username} сягають {percentage}% сьогодні, хай буде весело!",
-        "🌈 {username} сьогодні випромінює небінарну енергію на {percentage}%, унікально і стильно!",
-        "🌈 Гей-радар показує, що {username} на {percentage}% гей сьогодні, час для райдужних святкувань!",
-        "🌈 Магічний квір-кубик вирішив, що {username} сьогодні {percentage}% лесбійка, неймовірно та яскраво!"
-    ]
+    if percentage > 30:
+        phrases = [
+            "🌈 О, {username}, сьогодні ти випромінюєш гей-енергію на всі 100% — з любов'ю і пишністю!",
+            "🌈 {username} має виразні лесбійські вайби сьогодні, танцюймо під райдужні барви!",
+            "🌈 Схоже, {username} сьогодні бісексуальна зірка! Двічі більше любові, двічі більше веселощів!",
+            "🌈 Сьогодні {username} розквітає трансгендерною красою. Світ яскравіший з кожним кроком у власній правді!",
+            "🌈 {username} сьогодні в обіймах асексуальності. Таємниці серця такі різнобарвні!",
+            "🌈 Як це бути квір-королем/королевою, {username}? Сьогодні ти зірка райдужного шоу!",
+            "🌈 Пансексуальні пригоди чекають на {username}! Любов без меж і етикеток.",
+            "🌈 {username}, ти виглядаєш як квір-революціонер сьогодні. Перевертаймо стереотипи разом!",
+        ]
+    else:
+        phrases = [
+            "🌈 {username}, може й не гей, але райдужний союзник на всі 100%! Підтримка на рівні.",
+            "🌈 Сьогодні {username} випромінює стрейт-вайби, але з глибоким уваженням до всіх кольорів веселки!",
+            "🌈 {username} може і не в LGBTQ+ спектрі сьогодні, але радість і любов до всіх гарантовано!",
+            "🌈 {username} не гей? Не біда, твоя підтримка LGBTQ+ не менш цінна!",
+            "🌈 {username} грає на straight-струнах сьогодні, але райдужні акорди завжди в серці!",
+            "🌈 Сьогодні {username} скоріше алі-джентльмен/леді, ніж гей. Респект і любов до кожного!",
+            "🌈 {username}, сьогодні ти на straight-шляху, але з повагою до кожної ідентичності!",
+            "🌈 Навіть якщо {username} сьогодні не в райдужній зоні, її/його союзницька сила міцна як ніколи!",
+        ]
 
     # Send the result with a random orientation
-    await message.reply(
-        random.choice(phrases).format(username=target, percentage=percentage))
-
-
+    await message.reply(random.choice(phrases).format(username=target))
 
 
 @fun_router.message(Command("biba", prefix="!/"))
@@ -126,15 +175,15 @@ async def biba(message: types.Message):
     # Random chance to switch gender
     switch_chance = 20
     if random.randint(1, 100) <= switch_chance:
-        gender = 'man' if gender == 'woman' else 'woman'
+        gender = "man" if gender == "woman" else "woman"
 
     # Select an emoji for the biba or breast
-    is_biba = (gender == 'man')
+    is_biba = gender == "man"
     emoji = select_emoji(length, is_biba)
 
     # Send message based on final gender
-    if gender == 'woman':
-        await message.reply(f'{emoji} У {target} грудь {length // 5} размера.')
+    if gender == "woman":
+        await message.reply(f"{emoji} У {target} грудь {length // 5} размера.")
     else:
         # replace with your message for men
         await message.reply(f"{emoji} У {target} биба {length} см")

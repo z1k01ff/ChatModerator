@@ -1,16 +1,16 @@
+import logging
 from dataclasses import dataclass
 from typing import List, Optional
 
-from sqlalchemy import select, insert, delete, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.database.models import Base
 from infrastructure.database.models.tables import (
     BannedStickers,
     ChatAdmins,
-    RatingUsers,
     MessageUser,
+    RatingUsers,
 )
 
 
@@ -63,7 +63,9 @@ class RatingUsersRepo:
     async def get_rating_by_user_id(self, user_id: int) -> Optional[int]:
         stmt = select(RatingUsers.rating).where(RatingUsers.user_id == user_id)
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        rating = result.scalar()
+        logging.info(f"Rating for user {user_id}: {rating}")
+        return rating
 
     async def update_rating_by_user_id(self, user_id: int, rating: int):
         stmt = (
