@@ -1,10 +1,11 @@
 {
     // window zoom3 
-    // "window.zoomLevel": 3,
+    "window.zoomLevel": 2,
     // font size 20
-    // "editor.fontSize": 22,
+    "editor.fontSize": 18,
     // use black formatter for python
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter"
-      }
+        
+      },
 }

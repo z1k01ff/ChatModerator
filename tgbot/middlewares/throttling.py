@@ -31,7 +31,7 @@ class ThrottlingMiddleware(BaseMiddleware):
             logging.info(f"No rate limit found: {rate_limit}")
             return await handler(event, data)
 
-        if self._is_override(handler, user_id):
+        if self._is_override(data, user_id):
             return await handler(event, data)
 
         key_prefix = rate_limit.get("key", "antiflood")
@@ -48,9 +48,9 @@ class ThrottlingMiddleware(BaseMiddleware):
         # Proceed with the next handler if not throttled
         return await handler(event, data)
 
-    def _is_override(self, handler, user_id):
-        # override = self._get_flag(data, "override")
-        override = get_flag(handler, "override")
+    def _is_override(self, data, user_id):
+        override = get_flag(data, "override")
+        logging.info(f"Override: {override}")
         if override:
             user_override = override.get("user_id")
             return user_override == user_id

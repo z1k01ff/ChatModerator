@@ -1,6 +1,7 @@
 from aiogram import F, Router
 from aiogram.enums import ChatType
 
+from .ai import ai_router
 from .basic import groups_basic_router
 from .casino import groups_casino_router
 from .edit_chat import groups_chat_edit_router
@@ -21,4 +22,4 @@ group_router.include_routers(
 )
 
 
-__all__ = ["group_router", "groups_rating_router"]
+__all__ = ["group_router", "groups_rating_router", "ai_router"]

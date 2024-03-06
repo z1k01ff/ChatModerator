@@ -14,3 +14,4 @@ alembic~=1.0
 aiosqlite
 async_lru
 openai
+anthropic

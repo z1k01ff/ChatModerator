@@ -153,9 +153,16 @@ class OpenAI:
 
     @staticmethod
     def from_env(env):
-        return OpenAI(
-            api_key=env.str("OPENAI_API_KEY")
-        )
+        return OpenAI(api_key=env.str("OPENAI_API_KEY"))
+
+
+@dataclass
+class Anthropic:
+    api_key: str
+
+    @staticmethod
+    def from_env(env):
+        return Anthropic(api_key=env.str("ANTHROPIC_API_KEY"))
 
 
 @dataclass
@@ -182,6 +189,7 @@ class Config:
     db: Optional[DbConfig] = None
     redis: Optional[RedisConfig] = None
     openai: Optional[OpenAI] = None
+    anthropic: Optional[Anthropic] = None
 
 
 def load_config(path: str = None) -> Config:
@@ -202,5 +210,6 @@ def load_config(path: str = None) -> Config:
         # db=DbConfig.from_env(env),
         # redis=RedisConfig.from_env(env),
         misc=Miscellaneous(),
-        openai=OpenAI.from_env(env)
+        openai=OpenAI.from_env(env),
+        anthropic=Anthropic.from_env(env),
     )

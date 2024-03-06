@@ -5,13 +5,14 @@ import betterlogging as bl
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import DefaultKeyBuilder, RedisStorage
+from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 
 from infrastructure.database.repo.requests import Database
 from infrastructure.database.setup import create_engine, create_session_pool
 from tgbot.config import Config, load_config
 from tgbot.handlers.essential.fun import fun_router
-from tgbot.handlers.groups import group_router, groups_rating_router
+from tgbot.handlers.groups import ai_router, group_router, groups_rating_router
 from tgbot.handlers.private.basic import basic_router
 from tgbot.middlewares.config import ConfigMiddleware
 from tgbot.middlewares.database import DatabaseMiddleware
@@ -121,11 +122,16 @@ async def main():
     ratings_cache = {}
     openai_client = AsyncOpenAI(api_key=config.openai.api_key)
 
+    anthropic_client = AsyncAnthropic(
+        api_key=config.anthropic.api_key,
+    )
+
     dp.include_routers(
         groups_rating_router,
         group_router,
         fun_router,
         basic_router,
+        ai_router,
     )
 
     register_global_middlewares(dp, config, session_pool, openai_client)
@@ -133,6 +139,7 @@ async def main():
     await on_startup(bot, config.tg_bot.admin_ids)
     dp.workflow_data.update(
         ratings_cache=ratings_cache,
+        anthropic_client=anthropic_client,
     )
     await bot.delete_webhook()
     await dp.start_polling(bot)
