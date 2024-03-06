@@ -28,7 +28,13 @@ async def ask_ai(
     photo: types.PhotoSize | None = None,
     assistant_message: str | None = None,
 ):
-    reply_prompt = message.reply_to_message.text if message.reply_to_message else None
+    reply_prompt = None
+    if reply := message.reply_to_message:
+        if reply.text:
+            reply_prompt = reply.text
+        elif reply.caption:
+            reply_prompt = reply.caption
+
     if message.quote:
         reply_prompt = message.quote.text
 
