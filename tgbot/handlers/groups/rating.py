@@ -4,6 +4,8 @@ import logging
 from aiogram import Bot, F, Router, flags, types
 from aiogram.enums import ChatType
 from aiogram.filters import Command, or_f
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.base import StorageKey
 from aiogram.utils.markdown import hlink
 from async_lru import alru_cache
 
@@ -71,19 +73,62 @@ async def process_new_rating(
 @groups_rating_router.message(Command("top_helpers"))
 @flags.override(user_id=362089194)
 @flags.rate_limit(limit=30, key="top_helpers")
-async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot):
-    helpers = await repo.rating_users.get_top_by_rating(20)
-    emoji_for_top = ["🦕", "🐙", "🐮", "🐻", "🐼", "🐰", "🦊", "🦁", "🙈", "🐤", "🐸"]
+async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
+    history_key = StorageKey(bot_id=bot.id, user_id=m.chat.id, chat_id=m.chat.id)
+    state_data = await state.storage.get_data(key=history_key)
+    previous_helpers = state_data.get("top_helpers", {})
+    logging.info(f"Previous helpers: {previous_helpers}")
 
-    helpers = [(user_id, rating) for user_id, rating in helpers]
+    # Fetch the current top helpers and their ratings
+    current_helpers = await repo.rating_users.get_top_by_rating(20)
+    current_helpers_dict = {user_id: rating for user_id, rating in current_helpers}
+
+    # Prepare the list of helpers with their rating changes
+    helpers_with_changes = []
+    for user_id, rating in current_helpers:
+        previous_rating = previous_helpers.get(str(user_id), rating)
+        change = rating - previous_rating
+        change = (
+            f"⬆️ {change}" if change > 0 else f"🔻 {abs(change)}" if change < 0 else ""
+        )
+        helpers_with_changes.append((user_id, rating, change))
+
+    # Save the current state for comparison in the next command execution
+    await state.storage.set_data(
+        key=history_key, data={"top_helpers": current_helpers_dict}
+    )
+
+    # Formatting the message with emojis indicating rating changes
+    emoji_for_top = [
+        "🦄",
+        "🐉",
+        "🦁",
+        "🐅",
+        "🦅",
+        "🐘",
+        "🐬",
+        "🦜",
+        "🦢",
+        "🐢",
+        "🐰",
+        "🦊",
+        "🐒",
+        "🐿️",
+        "🐛",
+        "🦋",
+        "🐞",
+        "🐧",
+        "🦉",
+        "🐥",
+    ]
 
     tops = "\n".join(
         [
             f"<b>{number}) {emoji_for_top[number - 1] if number <= len(emoji_for_top) else ''} "
             f"{await get_profile(user_id, bot)} "
-            f"( {rating} )"
+            f"( {rating} ) {change}"
             f"</b>"
-            for number, (user_id, rating) in enumerate(helpers, 1)
+            for number, (user_id, rating, change) in enumerate(helpers_with_changes, 1)
         ]
     )
     text = f"Топ Хелперів:\n{tops}"

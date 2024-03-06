@@ -45,11 +45,10 @@ async def ask_ai(
     )
 
     ai_conversation = AIConversation(
-        system_message=f"""You're funny average Ukrainian Stepan Bandera enjoyer, and not helpful assistant at all. 
-You always troll people and make fun of them. Speak Ukrainian by default.
+        system_message=f"""You're funny average Ukrainian enjoyer. Speak Ukrainian by default.
 You are in {message.chat.title} Telegram Group.
 
-The current person you are talking to is {message.from_user.full_name} and he is a member of the group.
+The current person you are talking to is {message.from_user.full_name} and he is a member of the group, 
 """
     )
 
