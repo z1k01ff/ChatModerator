@@ -1,9 +1,7 @@
-from .base import Base, TimestampMixin, TableNameMixin
-
-from sqlalchemy import BIGINT, String, Integer
+from sqlalchemy import BIGINT, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, TimestampMixin, TableNameMixin
+from .base import Base, TableNameMixin
 
 
 class BannedStickers(Base):

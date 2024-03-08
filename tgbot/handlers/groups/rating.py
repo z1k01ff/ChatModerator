@@ -80,19 +80,24 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     logging.info(f"Previous helpers: {previous_helpers}")
 
     # Fetch the current top helpers and their ratings
-    current_helpers = await repo.rating_users.get_top_by_rating(20)
+    current_helpers = await repo.rating_users.get_top_by_rating(30)
     current_helpers_dict = {user_id: rating for user_id, rating in current_helpers}
 
     # Prepare the list of helpers with their rating changes
     helpers_with_changes = []
     for user_id, rating in current_helpers:
+        profile = await get_profile(m.chat.id, user_id, bot)
+        if not profile:
+            continue
+
         previous_rating = previous_helpers.get(str(user_id), rating)
         change = rating - previous_rating
         change = (
             f"⬆️ {change}" if change > 0 else f"🔻 {abs(change)}" if change < 0 else ""
         )
-        helpers_with_changes.append((user_id, rating, change))
+        helpers_with_changes.append((rating, change, profile))
 
+    helpers_with_changes[:20]
     # Save the current state for comparison in the next command execution
     await state.storage.set_data(
         key=history_key, data={"top_helpers": current_helpers_dict}
@@ -125,10 +130,8 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     tops = "\n".join(
         [
             f"<b>{number}) {emoji_for_top[number - 1] if number <= len(emoji_for_top) else ''} "
-            f"{await get_profile(user_id, bot)} "
-            f"( {rating} ) {change}"
-            f"</b>"
-            for number, (user_id, rating, change) in enumerate(helpers_with_changes, 1)
+            f"{profile} ( {rating} ) {change}</b>"
+            for number, (rating, change, profile) in enumerate(helpers_with_changes, 1)
         ]
     )
     text = f"Топ Хелперів:\n{tops}"
@@ -223,11 +226,15 @@ async def add_reaction_rating_handler(
     )
 
 
-@alru_cache(maxsize=10)
-async def get_profile(chat_id, bot) -> str:
+@alru_cache(maxsize=10, ttl=60 * 60 * 24 * 7)
+async def get_profile(group_id: int, chat_id: int, bot: Bot) -> str | bool:
     await asyncio.sleep(0.1)
     try:
-        chat = await bot.get_chat(chat_id)
+        logging.info(f"Getting profile for {chat_id}")
+        member = await bot.get_chat_member(group_id, chat_id)
+        if member.status not in ["member", "administrator", "creator"]:
+            return False
+
     except Exception:
-        return "Відсутній"
-    return hlink(title=chat.full_name, url=f"tg://user?id={chat_id}")
+        return False
+    return hlink(title=member.user.full_name, url=f"tg://user?id={chat_id}")
