@@ -24,9 +24,9 @@ class BotMessages(BaseRequestMiddleware):
         method: TelegramMethod[TelegramType],
     ):
         if isinstance(method, SendMessage):
+            result: types.Message = await make_request(bot, method)
             async with self.session_pool() as session:
                 repo = RequestsRepo(session)
-                result: types.Message = await make_request(bot, method)
                 await repo.message_user.add_message(
                     user_id=result.from_user.id,
                     chat_id=result.chat.id,
