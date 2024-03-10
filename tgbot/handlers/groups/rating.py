@@ -11,14 +11,16 @@ from cachetools import TTLCache, cached
 from cachetools.keys import hashkey
 
 from infrastructure.database.repo.requests import RequestsRepo
-from tgbot.misc.reaction_change import get_reaction_change
+from tgbot.misc.reaction_change import (
+    NEGATIVE_EMOJIS,
+    POSITIVE_EMOJIS,
+    get_reaction_change,
+)
 from tgbot.services.rating import change_rating
 
 groups_rating_router = Router()
 groups_rating_router.message.filter(F.chat.type == ChatType.SUPERGROUP)
 
-positive_emojis = ["👍", "❤", "🔥", "❤‍🔥", "😁", "🤣"]
-negative_emojis = ["👎", "🤡", "💩"]
 cache = TTLCache(maxsize=10, ttl=60 * 60 * 24 * 7)
 ratings = {
     "+": 1,
@@ -41,10 +43,10 @@ ratings = {
 }
 
 # add positive emojis and negative emojis to the rating dict = 1 and rating = -1
-for emoji in positive_emojis:
+for emoji in POSITIVE_EMOJIS:
     ratings[emoji] = 1
 
-for emoji in negative_emojis:
+for emoji in NEGATIVE_EMOJIS:
     ratings[emoji] = -2
 
 
@@ -183,10 +185,10 @@ async def add_rating_handler(m: types.Message, repo: RequestsRepo):
 
 
 @groups_rating_router.message_reaction(
-    F.new_reaction[0].emoji.in_(positive_emojis).as_("positive_rating"),
+    F.new_reaction[0].emoji.in_(POSITIVE_EMOJIS).as_("positive_rating"),
 )
 @groups_rating_router.message_reaction(
-    F.new_reaction[0].emoji.in_(negative_emojis).as_("negative_rating")
+    F.new_reaction[0].emoji.in_(NEGATIVE_EMOJIS).as_("negative_rating")
 )
 @flags.override(user_id=362089194)
 @flags.rate_limit(limit=180, key="rating", max_times=5)
