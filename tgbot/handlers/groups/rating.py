@@ -7,7 +7,8 @@ from aiogram.filters import Command, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.utils.markdown import hlink
-from async_lru import alru_cache
+from cachetools import TTLCache, cached
+from cachetools.keys import hashkey
 
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.misc.reaction_change import get_reaction_change
@@ -16,9 +17,9 @@ from tgbot.services.rating import change_rating
 groups_rating_router = Router()
 groups_rating_router.message.filter(F.chat.type == ChatType.SUPERGROUP)
 
-positive_emojis = ["👍", "❤", "🔥", "❤‍🔥"]
+positive_emojis = ["👍", "❤", "🔥", "❤‍🔥", "😁", "🤣"]
 negative_emojis = ["👎", "🤡", "💩"]
-
+cache = TTLCache(maxsize=10, ttl=60 * 60 * 24 * 7)
 ratings = {
     "+": 1,
     "➕": 1,
@@ -44,7 +45,7 @@ for emoji in positive_emojis:
     ratings[emoji] = 1
 
 for emoji in negative_emojis:
-    ratings[emoji] = -1
+    ratings[emoji] = -2
 
 
 async def process_new_rating(
@@ -226,15 +227,30 @@ async def add_reaction_rating_handler(
     )
 
 
-@alru_cache(maxsize=10, ttl=60 * 60 * 24 * 7)
+# Define a key-maker function
+def make_key(group_id, chat_id, bot):
+    # Ignore the `bot` instance in the cache key
+    return hashkey(group_id, chat_id)
+
+
+# Async wrapper for caching
+@cached(cache, key=make_key)
+async def get_profile_cached(group_id: int, chat_id: int, bot):
+    return await get_profile(group_id, chat_id, bot)
+
+
 async def get_profile(group_id: int, chat_id: int, bot: Bot) -> str | bool:
     await asyncio.sleep(0.1)
     try:
         logging.info(f"Getting profile for {chat_id}")
         member = await bot.get_chat_member(group_id, chat_id)
-        if member.status not in ["member", "administrator", "creator"]:
+        if member.status not in ["member", "administrator", "creator", "restricted"]:
             return False
 
     except Exception:
         return False
+    full_name = member.user.full_name
+    if member.user.is_bot:
+        full_name += " (бот)"
+
     return hlink(title=member.user.full_name, url=f"tg://user?id={chat_id}")

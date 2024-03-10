@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from typing import List, Literal, Optional
 
-from aiogram.types import Message
+from aiogram.types import Message, ReactionTypeEmoji
 from anthropic import AsyncAnthropic, types
 
 from tgbot.services.markdown_parser import telegram_format
@@ -44,8 +44,8 @@ class AIMedia:
 @dataclass
 class AIConversation:
     messages: List[types.MessageParam] = field(default_factory=list)
-    max_tokens: int = 300
-    _model_name: str = "claude-3-sonnet-20240229"
+    max_tokens: int = 380
+    _model_name: str = "claude-3-opus-20240229"
     system_message: Optional[str] = None
 
     def add_message(
@@ -73,8 +73,12 @@ class AIConversation:
     def add_assistant_message(self, text: str | None = None):
         self.add_message("assistant", text=text)
 
-    async def answer_with_ai(self, message: Message, ai_client: AsyncAnthropic):
-        sent_message = await message.reply("⏳")
+    async def answer_with_ai(
+        self, message: Message, ai_client: AsyncAnthropic, reply: Message | None = None
+    ) -> int:
+        sent_message = await message.answer(
+            "⏳", reply_to_message_id=reply.message_id if reply else message.message_id
+        )
 
         last_time = time.time()
         text = ""
@@ -86,14 +90,14 @@ class AIConversation:
         ) as stream:
             async for partial_text in stream.text_stream:
                 text += partial_text
-                if time.time() - last_time > 0.5:
+                if time.time() - last_time > 5:
                     cont_symbol = random.choice(["▌", "█"])
                     await sent_message.edit_text(
                         telegram_format(text) + cont_symbol, parse_mode="HTML"
                     )
                     last_time = time.time()
 
-        await sent_message.delete()
-
         final_message = await stream.get_final_text()
-        await message.reply(telegram_format(final_message), parse_mode="HTML")
+        await sent_message.edit_text(telegram_format(final_message), parse_mode="HTML")
+        await message.react(reaction=[ReactionTypeEmoji(emoji="👨‍💻")], is_big=True)
+        return sent_message.message_id

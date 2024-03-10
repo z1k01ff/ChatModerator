@@ -28,6 +28,8 @@ class OpenAIModerationMiddleware(BaseMiddleware):
     ) -> Any:
         if not isinstance(event, types.Message) or not event.text:
             return await handler(event, data)
+        if event.forward_from_chat or event.forward_from:
+            return await handler(event, data)
 
         response = await self.client.moderations.create(input=event.text)
         user_id = event.from_user.id

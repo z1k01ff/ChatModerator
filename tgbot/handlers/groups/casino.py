@@ -32,9 +32,8 @@ async def process_dice_roll(message: types.Message, user: User | None = None):
     time = slot["time"]
     prize = slot["prize"]
 
-    if message.forward_from:
-        time *= 2  # Doubling the time if the message was forwarded
-        prize += " а також обманював"
+    if message.forward_from or message.forward_sender_name:
+        return
 
     until_date = datetime.datetime.now() + datetime.timedelta(minutes=time)
 

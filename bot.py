@@ -14,7 +14,7 @@ from tgbot.config import Config, load_config
 from tgbot.handlers.essential.fun import fun_router
 from tgbot.handlers.groups import ai_router, group_router, groups_rating_router
 from tgbot.handlers.private.basic import basic_router
-from tgbot.middlewares.config import ConfigMiddleware
+from tgbot.middlewares.bot_messages import BotMessages
 from tgbot.middlewares.database import DatabaseMiddleware
 from tgbot.middlewares.policy_content import OpenAIModerationMiddleware
 from tgbot.middlewares.ratings_cache import (
@@ -27,7 +27,8 @@ from tgbot.misc.default_commands import set_default_commands
 from tgbot.services import broadcaster
 
 
-async def on_startup(bot: Bot, admin_ids: list[int]):
+async def on_startup(bot: Bot, config: Config):
+    admin_ids = config.tg_bot.admin_ids
     await broadcaster.broadcast(bot, admin_ids, "Бот був запущений")
     await set_default_commands(bot)
 
@@ -46,7 +47,6 @@ def register_global_middlewares(
     :return: None
     """
     middleware_types = [
-        ConfigMiddleware(config),
         OpenAIModerationMiddleware(openai_client),
     ]
 
@@ -136,13 +136,14 @@ async def main():
 
     register_global_middlewares(dp, config, session_pool, openai_client)
 
-    await on_startup(bot, config.tg_bot.admin_ids)
     dp.workflow_data.update(
         ratings_cache=ratings_cache,
         anthropic_client=anthropic_client,
     )
+    bot.session.middleware(BotMessages(session_pool))
     await bot.delete_webhook()
-    await dp.start_polling(bot)
+    dp.startup.register(on_startup)
+    await dp.start_polling(bot, config=config)
 
 
 if __name__ == "__main__":
