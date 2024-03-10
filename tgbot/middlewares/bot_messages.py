@@ -23,7 +23,7 @@ class BotMessages(BaseRequestMiddleware):
         bot: Bot,
         method: TelegramMethod[TelegramType],
     ):
-        if type(method) == SendMessage:
+        if isinstance(method, SendMessage):
             async with self.session_pool() as session:
                 repo = RequestsRepo(session)
                 result: types.Message = await make_request(bot, method)
