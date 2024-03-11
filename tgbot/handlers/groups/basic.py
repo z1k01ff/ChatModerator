@@ -3,6 +3,8 @@ from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.markdown import hbold
 
+from tgbot.keyboards.inline import start_markup
+
 groups_basic_router = Router()
 
 groups_basic_router.message.filter(
@@ -41,7 +43,7 @@ async def help_cmd(message: types.Message):
 {header4}
 /gay [ціль*] - Тест на гея
 /biba - Перевірити бібу
-/roll - Випадкове число
+/top_helpers - Топ хелперів
 
 {warning}
 """.format(
@@ -56,4 +58,4 @@ async def help_cmd(message: types.Message):
     )
 
     # Відправляємо список команд
-    await message.reply(text=text)
+    await message.reply(text=text, reply_markup=start_markup(in_group=True))

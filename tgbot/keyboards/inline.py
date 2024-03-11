@@ -4,13 +4,12 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 при стартовом сообщении. (!/start)"""
 
 
-def start_markup():
+def start_markup(in_group: bool = False):
     markup = InlineKeyboardBuilder()
-    markup.button(text="Список команд", callback_data="help")
-    markup.button(text="Мій код",
-                  url="https://github.com/BotfatherDev/ChatModerator"
-                  )
-    markup.button(text="Чат",
-                  url="https://t.me/bot_devs_novice"
-                  )
+    if not in_group:
+        markup.button(text="Список команд", callback_data="help")
+        markup.button(text="Наш Чат", url="https://t.me/bot_devs_novice")
+
+    markup.button(text="Мій код", url="https://github.com/BotfatherDev/ChatModerator")
+    markup.adjust(1, 2)
     return markup.as_markup()

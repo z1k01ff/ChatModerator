@@ -13,6 +13,7 @@ async def set_default_commands(bot: Bot):
         "top_helpers": "Дізнатися топ хелперів",
         "casino": "Зіграти в казино",
         "ai": "ШІ відповідь",
+        "help": "Інформація про бота",
     }
 
     command_defaults = {"help": "Допоможіть мені"}
