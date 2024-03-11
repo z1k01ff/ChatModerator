@@ -1,14 +1,17 @@
 import base64
 import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from io import BytesIO
 from typing import List, Literal, Optional
 
+from aiogram import Bot
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Message, ReactionTypeEmoji
 from anthropic import AsyncAnthropic, types
 
 from tgbot.services.markdown_parser import telegram_format
+from tgbot.services.token_usage import TokenUsageManager
 
 
 @dataclass
@@ -41,12 +44,21 @@ class AIMedia:
         return content
 
 
-@dataclass
-class AIConversation:
-    messages: List[types.MessageParam] = field(default_factory=list)
-    max_tokens: int = 450
-    _model_name: str = "claude-3-opus-20240229"
-    system_message: Optional[str] = None
+class AIConversation(TokenUsageManager):
+    def __init__(
+        self,
+        storage: RedisStorage,
+        bot: Bot,
+        messages: List[types.MessageParam] | None = None,
+        max_tokens: int = 450,
+        _model_name: str = "claude-3-opus-20240229",
+        system_message: Optional[str] = None,
+    ):
+        super().__init__(storage, bot)
+        self.messages = messages or []
+        self.max_tokens = max_tokens
+        self._model_name = _model_name
+        self.system_message = system_message
 
     def add_message(
         self,
@@ -74,7 +86,11 @@ class AIConversation:
         self.add_message("assistant", text=text)
 
     async def answer_with_ai(
-        self, message: Message, ai_client: AsyncAnthropic, reply: Message | None = None
+        self,
+        message: Message,
+        ai_client: AsyncAnthropic,
+        reply: Message | None = None,
+        notification: str | None = None,
     ) -> int:
         sent_message = await message.answer(
             "⏳", reply_to_message_id=reply.message_id if reply else message.message_id
@@ -93,11 +109,14 @@ class AIConversation:
                 if time.time() - last_time > 5:
                     cont_symbol = random.choice(["▌", "█"])
                     await sent_message.edit_text(
-                        telegram_format(text) + cont_symbol, parse_mode="HTML"
+                        f"{notification}\n\n" + telegram_format(text) + cont_symbol,
+                        parse_mode="HTML",
                     )
                     last_time = time.time()
 
-        final_message = await stream.get_final_text()
-        await sent_message.edit_text(telegram_format(final_message), parse_mode="HTML")
+        final_text = await stream.get_final_text()
+        await sent_message.edit_text(
+            f"{notification}\n\n" + telegram_format(final_text), parse_mode="HTML"
+        )
         await message.react(reaction=[ReactionTypeEmoji(emoji="👨‍💻")], is_big=True)
-        return sent_message.message_id
+        return (await stream.get_final_message()).usage.input_tokens
