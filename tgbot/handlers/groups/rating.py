@@ -203,7 +203,7 @@ async def add_reaction_rating_handler(
     rating_change = (
         1
         if reaction_change == "positive"
-        else -1 if reaction_change == "negative" else 0
+        else -3 if reaction_change == "negative" else 0
     )
 
     if not rating_change:

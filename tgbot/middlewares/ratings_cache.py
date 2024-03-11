@@ -1,11 +1,12 @@
-from typing import Callable, Dict, Any, Awaitable
+import logging
+from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
-
+from aiogram.dispatcher.flags import get_flag
 from aiogram.types import Message, MessageReactionUpdated
+
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.services.rating import is_rating_cached
-from aiogram.dispatcher.flags import get_flag
 
 
 class RatingCacheMessageMiddleware(BaseMiddleware):
@@ -43,10 +44,9 @@ class RatingCacheReactionMiddleware(BaseMiddleware):
 
         user_id = reaction.user.id if reaction.user else reaction.actor_chat.id
 
-        cached = is_rating_cached(
-            reaction.chat.id, user_id, reaction.message_id, ratings_cache
-        )
+        cached = is_rating_cached(reaction.chat.id, user_id, ratings_cache)
         if cached:
+            logging.info("Cached rating reaction. Ignoring.")
             return
 
         return await handler(reaction, data)

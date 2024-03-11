@@ -2,16 +2,16 @@ from datetime import datetime, timedelta
 
 from infrastructure.database.repo.requests import RequestsRepo
 
+RATING_CACHE_TTL = timedelta(minutes=1)
 
-def is_rating_cached(
-    helper_id: int, user_id: int, message_id: int, ratings_cache: dict
-) -> bool:
-    key = (helper_id, user_id, message_id)
+
+def is_rating_cached(helper_id: int, user_id: int, ratings_cache: dict) -> bool:
+    key = (helper_id, user_id)
     now = datetime.now()
 
     if key in ratings_cache:
         # Check if the cache entry is still valid (e.g., within 1 minute)
-        if now - ratings_cache[key] < timedelta(minutes=1):
+        if now - ratings_cache[key] < RATING_CACHE_TTL:
             return True  # It's a duplicate within the time window
 
     # Update the cache
