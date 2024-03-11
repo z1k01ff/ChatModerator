@@ -42,7 +42,10 @@ class ThrottlingMiddleware(BaseMiddleware):
         if self._should_throttle(key, now, limit, max_times):
             logging.info(f"Throttling {user_id} for {key_prefix}")
             if isinstance(event, Message):
-                await event.answer("Занадто часто!")
+                left_time = limit - (now - self.users[key][0]).seconds
+                await event.answer(
+                    f"Занадто часто! Повторіть спробу через {left_time} секунд"
+                )
             return  # Stop processing if throttled
 
         # Proceed with the next handler if not throttled

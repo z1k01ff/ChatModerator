@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from aiogram import Bot, F, Router, flags, types
@@ -6,9 +5,7 @@ from aiogram.enums import ChatType
 from aiogram.filters import Command, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
-from aiogram.utils.markdown import hlink
-from cachetools import TTLCache, cached
-from cachetools.keys import hashkey
+from cachetools import TTLCache
 
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.misc.reaction_change import (
@@ -16,6 +13,7 @@ from tgbot.misc.reaction_change import (
     POSITIVE_EMOJIS,
     get_reaction_change,
 )
+from tgbot.services.cache_profiles import get_profile_cached
 from tgbot.services.rating import change_rating
 
 groups_rating_router = Router()
@@ -89,7 +87,7 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     # Prepare the list of helpers with their rating changes
     helpers_with_changes = []
     for user_id, rating in current_helpers:
-        profile = await get_profile(m.chat.id, user_id, bot)
+        profile = await get_profile_cached(state.storage, m.chat.id, user_id, bot)
         if not profile:
             continue
 
@@ -100,9 +98,9 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
         )
         helpers_with_changes.append((rating, change, profile))
 
-    helpers_with_changes[:20]
+    helpers_with_changes = helpers_with_changes[:20]
     # Save the current state for comparison in the next command execution
-    await state.storage.set_data(
+    await state.storage.update_data(
         key=history_key, data={"top_helpers": current_helpers_dict}
     )
 
@@ -227,32 +225,3 @@ async def add_reaction_rating_handler(
         reaction.user.mention_html(reaction.user.first_name),
         helper.user.mention_html(helper.user.first_name),
     )
-
-
-# Define a key-maker function
-def make_key(group_id, chat_id, bot):
-    # Ignore the `bot` instance in the cache key
-    return hashkey(group_id, chat_id)
-
-
-# Async wrapper for caching
-@cached(cache, key=make_key)
-async def get_profile_cached(group_id: int, chat_id: int, bot):
-    return await get_profile(group_id, chat_id, bot)
-
-
-async def get_profile(group_id: int, chat_id: int, bot: Bot) -> str | bool:
-    await asyncio.sleep(0.1)
-    try:
-        logging.info(f"Getting profile for {chat_id}")
-        member = await bot.get_chat_member(group_id, chat_id)
-        if member.status not in ["member", "administrator", "creator", "restricted"]:
-            return False
-
-    except Exception:
-        return False
-    full_name = member.user.full_name
-    if member.user.is_bot:
-        full_name += " (бот)"
-
-    return hlink(title=member.user.full_name, url=f"tg://user?id={chat_id}")
