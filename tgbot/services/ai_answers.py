@@ -44,7 +44,7 @@ class AIMedia:
 @dataclass
 class AIConversation:
     messages: List[types.MessageParam] = field(default_factory=list)
-    max_tokens: int = 380
+    max_tokens: int = 450
     _model_name: str = "claude-3-opus-20240229"
     system_message: Optional[str] = None
 
