@@ -7,6 +7,7 @@ from aiogram import Bot, F, Router, types
 from aiogram.filters import Command
 
 from tgbot.filters.permissions import HasPermissionsFilter
+from tgbot.filters.rating import RatingFilter
 from tgbot.misc.permissions import (
     set_new_user_approved_permissions,
     set_no_media_permissions,
@@ -548,15 +549,38 @@ async def promote_user(message: types.Message, bot: Bot):
 # another handler to promote with custom title, allowing only can_invite_users
 @groups_moderate_router.message(
     Command("title", prefix="/!"),
-    F.reply_to_message,
+    F.reply_to_message.from_user.as_("member"),
     HasPermissionsFilter(can_promote_members=True),
 )
-async def promote_with_title(message: types.Message):
-    admin_username = message.from_user.username
-    admin_mentioned = message.from_user.mention_html()
-    member_id = message.reply_to_message.from_user.id
-    member_username = message.reply_to_message.from_user.username
-    member_mentioned = message.reply_to_message.from_user.mention_html()
+@groups_moderate_router.message(
+    Command("title", prefix="/!"),
+    ~F.reply_to_message,
+    F.from_user.as_("member_self"),
+    RatingFilter(rating=100),
+)
+@groups_moderate_router.message(
+    Command("title", prefix="/!"),
+    F.from_user.as_("member_self"),
+    HasPermissionsFilter(can_promote_members=True),
+)
+async def promote_with_title(
+    message: types.Message,
+    bot: Bot,
+    member: types.User | None = None,
+    member_self: types.User | None = None,
+):
+    if member_self:
+        member = member_self
+        admin = await bot.get_me()
+    else:
+        admin = message.from_user
+
+    admin_username = admin.username
+    admin_mentioned = admin.mention_html()
+
+    member_id = member.id
+    member_username = member.username
+    member_mentioned = member.mention_html()
 
     command_parse = re.compile(r"(!title|/title)( [\w+\D]+)?")
     parsed = command_parse.match(message.text)
@@ -595,6 +619,16 @@ async def promote_with_title(message: types.Message):
         await asyncio.sleep(5)
         await message.delete()
         await service_message.delete()
+
+
+@groups_moderate_router.message(
+    Command("title", prefix="/!"),
+    ~F.reply_to_message,
+    F.from_user.as_("member_self"),
+    ~RatingFilter(rating=100),
+)
+async def not_enough_rating(message: types.Message):
+    await message.answer("У вас недостатньо рейтингу для використання цієї команди.")
 
 
 @groups_moderate_router.message(

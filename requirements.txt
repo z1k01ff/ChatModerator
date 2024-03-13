@@ -16,3 +16,4 @@ async_lru
 openai
 anthropic
 cachetools
+pyrogram

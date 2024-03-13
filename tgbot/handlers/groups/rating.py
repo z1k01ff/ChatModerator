@@ -86,6 +86,7 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
 
     # Prepare the list of helpers with their rating changes
     helpers_with_changes = []
+    users_100_plus = []
     for user_id, rating in current_helpers:
         profile = await get_profile_cached(state.storage, m.chat.id, user_id, bot)
         if not profile:
@@ -96,6 +97,9 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
         change = (
             f"⬆️ {change}" if change > 0 else f"🔻 {abs(change)}" if change < 0 else ""
         )
+        if rating > 100 and previous_rating <= 100:
+            users_100_plus.append(profile)
+
         helpers_with_changes.append((rating, change, profile))
 
     helpers_with_changes = helpers_with_changes[:20]
@@ -136,6 +140,13 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
         ]
     )
     text = f"Топ Хелперів:\n{tops}"
+    if users_100_plus:
+        text += (
+            "\n\nТакож, користувачі: "
+            + ", ".join([profile for profile in users_100_plus])
+            + " мають рейтинг більше 100, і тепер можуть ставити собі кастомний титул командою <code>/title титул</code>"
+        )
+
     await m.answer(text, disable_notification=True)
 
 

@@ -131,6 +131,19 @@ class RedisConfig:
 
 
 @dataclass
+class ClientAPI:
+    api_id: int
+    api_hash: str
+
+    @staticmethod
+    def from_env(env):
+        return ClientAPI(
+            api_id=env.int("API_ID"),
+            api_hash=env.str("API_HASH"),
+        )
+
+
+@dataclass
 class Miscellaneous:
     """
     Miscellaneous configuration class.
@@ -190,6 +203,7 @@ class Config:
     redis: Optional[RedisConfig] = None
     openai: Optional[OpenAI] = None
     anthropic: Optional[Anthropic] = None
+    client: Optional[ClientAPI] = None
 
 
 def load_config(path: str = None) -> Config:
@@ -208,6 +222,7 @@ def load_config(path: str = None) -> Config:
     return Config(
         tg_bot=TgBot.from_env(env),
         # db=DbConfig.from_env(env),
+        client=ClientAPI.from_env(env),
         redis=RedisConfig.from_env(env),
         misc=Miscellaneous(),
         openai=OpenAI.from_env(env),

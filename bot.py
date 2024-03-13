@@ -7,6 +7,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import DefaultKeyBuilder, RedisStorage
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
+from pyrogram import Client
 
 from infrastructure.database.repo.requests import Database
 from infrastructure.database.setup import create_engine, create_session_pool
@@ -27,10 +28,15 @@ from tgbot.misc.default_commands import set_default_commands
 from tgbot.services import broadcaster
 
 
-async def on_startup(bot: Bot, config: Config):
+async def on_startup(bot: Bot, config: Config, client: Client) -> None:
     admin_ids = config.tg_bot.admin_ids
     await broadcaster.broadcast(bot, admin_ids, "Бот був запущений")
     await set_default_commands(bot)
+    await client.start()
+
+
+async def shutdown(client: Client) -> None:
+    await client.stop()
 
 
 def register_global_middlewares(
@@ -114,9 +120,16 @@ async def main():
     storage = get_storage(config)
 
     bot = Bot(token=config.tg_bot.token, parse_mode="HTML")
-    dp = Dispatcher(storage=storage)
     engine = create_engine("main.db")
     db = Database(engine)
+    client = Client(
+        name="bot",
+        bot_token=config.tg_bot.token,
+        api_id=config.client.api_id,
+        api_hash=config.client.api_hash,
+        no_updates=True,  # We don't need to handle incoming updates by client
+    )
+    dp = Dispatcher(storage=storage, client=client)
     await db.create_tables()
     session_pool = create_session_pool(engine)
     ratings_cache = {}
@@ -143,6 +156,7 @@ async def main():
     bot.session.middleware(BotMessages(session_pool))
     await bot.delete_webhook()
     dp.startup.register(on_startup)
+    dp.shutdown.register(shutdown)
     await dp.start_polling(bot, config=config)
 
 

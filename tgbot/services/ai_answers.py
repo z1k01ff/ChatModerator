@@ -88,14 +88,10 @@ class AIConversation(TokenUsageManager):
     async def answer_with_ai(
         self,
         message: Message,
+        sent_message: Message,
         ai_client: AsyncAnthropic,
-        reply: Message | None = None,
         notification: str | None = None,
     ) -> int:
-        sent_message = await message.answer(
-            "⏳", reply_to_message_id=reply.message_id if reply else message.message_id
-        )
-
         last_time = time.time()
         text = ""
         async with ai_client.messages.stream(
@@ -111,12 +107,15 @@ class AIConversation(TokenUsageManager):
                     await sent_message.edit_text(
                         f"{notification}\n\n" + telegram_format(text) + cont_symbol,
                         parse_mode="HTML",
+                        disable_web_page_preview=True,
                     )
                     last_time = time.time()
 
         final_text = await stream.get_final_text()
         await sent_message.edit_text(
-            f"{notification}\n\n" + telegram_format(final_text), parse_mode="HTML"
+            f"{notification}\n\n" + telegram_format(final_text),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
         )
         await message.react(reaction=[ReactionTypeEmoji(emoji="👨‍💻")], is_big=True)
         return (await stream.get_final_message()).usage.input_tokens
