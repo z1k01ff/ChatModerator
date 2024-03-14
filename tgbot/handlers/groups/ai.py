@@ -40,7 +40,16 @@ async def get_reply_person(
     if assistant_message:
         return "Your"
     if reply := message.reply_to_message:
-        return reply.from_user.full_name
+        reply: types.Message
+        if reply.forward_from_chat:
+            return reply.forward_from_chat.title
+        if reply.forward_from:
+            return reply.forward_from.full_name
+        if reply.forward_sender_name:
+            return reply.forward_sender_name
+        if reply.from_user:
+            return reply.from_user.full_name
+
     return "Noone"
 
 
@@ -133,12 +142,6 @@ async def get_notification(usage_cost: float) -> str:
 
 @ai_router.message(Command("ai", magic=F.args.as_("prompt")), RatingFilter(rating=50))
 @ai_router.message(
-    Command("ai"), F.reply_to_message.text.as_("prompt"), RatingFilter(rating=50)
-)
-@ai_router.message(
-    Command("ai"), F.reply_to_message.caption.as_("prompt"), RatingFilter(rating=50)
-)
-@ai_router.message(
     Command("ai", magic=F.args.as_("prompt")),
     F.photo[-1].as_("photo"),
     RatingFilter(rating=50),
@@ -162,6 +165,7 @@ async def ask_ai(
     bot: Bot,
     state: FSMContext,
     client: Client,
+    rating: int,
     prompt: str | None = None,
     command: CommandObject | None = None,
     photo: types.PhotoSize | None = None,
@@ -175,6 +179,7 @@ async def ask_ai(
     reply_person = await get_reply_person(message, assistant_message)
     num_messages, multiple_prompt = parse_multiple_command(command)
 
+    logging.info(f"{reply_person=}")
     if multiple_prompt:
         prompt = multiple_prompt
 
@@ -183,7 +188,10 @@ async def ask_ai(
         message, reply_prompt, assistant_message, reply_person, messages_history
     )
     ai_conversation = AIConversation(
-        bot=bot, storage=state.storage, system_message=system_message
+        bot=bot,
+        storage=state.storage,
+        system_message=system_message,
+        max_tokens=400 if rating < 300 else 700,
     )
     usage_cost = await ai_conversation.calculate_cost(
         Opus, message.chat.id, message.from_user.id
@@ -196,7 +204,7 @@ async def ask_ai(
             reply_photo, destination=BytesIO()  # type: ignore
         )
         ai_media = AIMedia(photo_bytes_io)
-        ai_conversation.add_user_message(text=reply_prompt, ai_media=ai_media)
+        ai_conversation.add_user_message(text="Image", ai_media=ai_media)
         if prompt:
             ai_conversation.add_assistant_message("Дякую!")
 
@@ -208,6 +216,9 @@ async def ask_ai(
     elif prompt:
         logging.info("Adding user message without photo")
         ai_conversation.add_user_message(text=prompt)
+
+    if prompt == "test":
+        return await message.answer("🤖 Тестування пройшло успішно!")
 
     sent_message = await message.answer(
         "⏳",
