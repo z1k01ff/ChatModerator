@@ -94,6 +94,13 @@ class AIConversation(TokenUsageManager):
     ) -> int:
         last_time = time.time()
         text = ""
+
+        if not self.messages:
+            await sent_message.edit_text(
+                "🤖 Не знаю на що відповідати:)",
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
         async with ai_client.messages.stream(
             max_tokens=self.max_tokens,
             model=self._model_name,
