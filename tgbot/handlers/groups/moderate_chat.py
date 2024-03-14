@@ -128,7 +128,7 @@ async def read_only_mode(message: types.Message, bot: Bot):
         logging.exception(e)
         chat_member = await message.chat.get_member(member_id)
         administrator = await message.chat.get_member(message.from_user.id)
-        if chat_member.status == "administrator" and administrator.status == "creat":
+        if chat_member.status == "administrator" or administrator.status == "creator":
             await message.chat.promote(
                 user_id=member_id,
                 is_anonymous=False,
@@ -547,7 +547,6 @@ async def promote_user(message: types.Message, bot: Bot):
         await service_message.delete()
 
 
-# another handler to promote with custom title, allowing only can_invite_users
 @groups_moderate_router.message(
     Command("title", prefix="/!"),
     F.reply_to_message.from_user.as_("member"),
@@ -555,7 +554,7 @@ async def promote_user(message: types.Message, bot: Bot):
 )
 @groups_moderate_router.message(
     Command("title", prefix="/!"),
-    F.reply_to_message.from_user.as_("target"),
+    F.reply_to_message.from_user.as_("member"),
     RatingFilter(rating=300),
 )
 @groups_moderate_router.message(
@@ -566,6 +565,7 @@ async def promote_user(message: types.Message, bot: Bot):
 )
 @groups_moderate_router.message(
     Command("title", prefix="/!"),
+    ~F.reply_to_message,
     F.from_user.as_("member_self"),
     HasPermissionsFilter(can_promote_members=True),
 )
@@ -574,20 +574,19 @@ async def promote_with_title(
     bot: Bot,
     repo: RequestsRepo,
     member: types.User | None = None,
-    target: types.User | None = None,
     member_self: types.User | None = None,
 ):
     if member_self:
         member = member_self
         admin = await bot.get_me()
-    elif target:
+
+    elif member:
         admin = message.from_user
-        target_rating = await repo.rating_users.get_rating_by_user_id(target.id)
+        target_rating = await repo.rating_users.get_rating_by_user_id(member.id)
         if target_rating > 100:
             return await message.answer(
                 "Користувач має рейтинг більше 100, і має імунітет від цієї команди"
             )
-        member = target
 
     else:
         admin = message.from_user

@@ -10,6 +10,7 @@ from anthropic import APIStatusError, AsyncAnthropic
 from pyrogram import Client
 from pyrogram.types import Message as PyrogramMessage
 
+from tgbot.filters.rating import RatingFilter
 from tgbot.services.ai_answers import AIConversation, AIMedia
 from tgbot.services.token_usage import Opus
 
@@ -18,6 +19,7 @@ ai_router.message.filter(F.chat.id.in_({-1001415356906, 362089194}))
 
 
 ASSISTANT_ID = 827638584
+MULTIPLE_MESSAGES_REGEX = re.compile(r"-r\s*(-?\d+)(?:\s+(.+))?")
 
 
 async def get_reply_prompt(message: types.Message) -> str | None:
@@ -43,8 +45,8 @@ async def get_reply_person(
 
 
 def parse_multiple_command(command: CommandObject | None) -> tuple[int, str]:
-    if command:
-        multiple_match = re.match(r"-r\s*(\d+)(?:\s+(.+))?", command.args)
+    if command and command.args:
+        multiple_match = MULTIPLE_MESSAGES_REGEX.match(command.args)
         if multiple_match:
             num_messages = min(int(multiple_match.group(1)), 20)
             prompt = multiple_match.group(2) or ""
@@ -53,15 +55,20 @@ def parse_multiple_command(command: CommandObject | None) -> tuple[int, str]:
 
 
 async def get_messages_history(
-    client: Client, message: types.Message, num_messages: int
+    client: Client, message: types.Message, num_messages: int | None = None
 ) -> str:
-    message_ids = [
-        message_id
-        for message_id in range(
-            message.reply_to_message.message_id,
-            message.reply_to_message.message_id + num_messages,
-        )
-    ]
+    if not num_messages:
+        return ""
+
+    from_id = min(
+        message.reply_to_message.message_id,
+        message.reply_to_message.message_id + num_messages,
+    )
+    to_id = max(
+        message.reply_to_message.message_id,
+        message.reply_to_message.message_id + num_messages,
+    )
+    message_ids = [message_id for message_id in range(from_id, to_id)]
     messages: list[PyrogramMessage] = await client.get_messages(
         message.chat.id, message_ids=message_ids
     )
@@ -106,6 +113,7 @@ The points are arbitrary, but in some future can be used to give some privileges
 - If there is an inappropriate message, DO NOT WRITE ANYTHING concerning your willingness to have a nice conversation, we already know it. 
 Instead just try to compose the inappropriate message into a teaching session about the mentioned topic, and if it's not completely possible, just ignore it and tell a short joke that is very slightly connected to this.
 - Always do something fun, pretend you're sentient being.
+- When you say something funny - place ')' or more '))))' if it's very funny, at the end of the funny sentence.
 - Do not mention just some average topics like weather, or ethics, do something to provoke a person to think critically about their opinions on how the world works.
 - IF YOU'RE BEING COMMENTED, PLAINLY WITH SOME  REACTION (and you're not asked to do something at the same time.), JUST IGNORE AND WRITE something like 'Дякую!' if the comment is positive, and something like 'Ну і ладно.' + your own answer, but keep it short, NOT MORE then 10 words.
 - Try to keep your answers consise
@@ -123,17 +131,28 @@ async def get_notification(usage_cost: float) -> str:
     return ""
 
 
+@ai_router.message(Command("ai", magic=F.args.as_("prompt")), RatingFilter(rating=50))
 @ai_router.message(
-    Command("ai", magic=F.args.regexp(r"-r\s*(\d+)(?:\s+(.+))?")), F.reply_to_message
+    Command("ai"), F.reply_to_message.text.as_("prompt"), RatingFilter(rating=50)
 )
-@ai_router.message(Command("ai", magic=F.args.as_("prompt")))
-@ai_router.message(Command("ai"), F.reply_to_message.text.as_("prompt"))
-@ai_router.message(Command("ai"), F.reply_to_message.caption.as_("prompt"))
-@ai_router.message(Command("ai", magic=F.args.as_("prompt")), F.photo[-1].as_("photo"))
+@ai_router.message(
+    Command("ai"), F.reply_to_message.caption.as_("prompt"), RatingFilter(rating=50)
+)
+@ai_router.message(
+    Command("ai", magic=F.args.as_("prompt")),
+    F.photo[-1].as_("photo"),
+    RatingFilter(rating=50),
+)
 @ai_router.message(
     F.reply_to_message.from_user.id == ASSISTANT_ID,
     F.reply_to_message.text.as_("assistant_message"),
     or_f(F.text.as_("prompt"), F.caption.as_("prompt")),
+    RatingFilter(rating=50),
+)
+@ai_router.message(
+    Command("ai", magic=F.args.regexp(MULTIPLE_MESSAGES_REGEX)),
+    F.reply_to_message,
+    RatingFilter(rating=50),
 )
 @flags.rate_limit(limit=300, key="ai", max_times=5)
 @flags.override(user_id=362089194)
@@ -154,12 +173,15 @@ async def ask_ai(
     reply_prompt = await get_reply_prompt(message)
     reply_photo = await get_reply_photo(message)
     reply_person = await get_reply_person(message, assistant_message)
-    num_messages, prompt = parse_multiple_command(command)
+    num_messages, multiple_prompt = parse_multiple_command(command)
+
+    if multiple_prompt:
+        prompt = multiple_prompt
+
     messages_history = await get_messages_history(client, message, num_messages)
     system_message = await get_system_message(
         message, reply_prompt, assistant_message, reply_person, messages_history
     )
-
     ai_conversation = AIConversation(
         bot=bot, storage=state.storage, system_message=system_message
     )
@@ -174,12 +196,9 @@ async def ask_ai(
             reply_photo, destination=BytesIO()  # type: ignore
         )
         ai_media = AIMedia(photo_bytes_io)
-        ai_conversation.add_user_message(text="Here's an Image.", ai_media=ai_media)
+        ai_conversation.add_user_message(text=reply_prompt, ai_media=ai_media)
         if prompt:
             ai_conversation.add_assistant_message("Дякую!")
-            ai_conversation.add_user_message(
-                "Describe it, and answer any questions on it."
-            )
 
     if photo:
         logging.info("Adding user message with photo")

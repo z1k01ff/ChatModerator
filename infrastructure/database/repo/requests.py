@@ -60,6 +60,15 @@ class RatingUsersRepo:
         await self.session.execute(stmt)
         await self.session.commit()
 
+    async def increment_rating_by_user_id(self, user_id: int, increment: int):
+        stmt = (
+            update(RatingUsers)
+            .where(RatingUsers.user_id == user_id)
+            .values(rating=RatingUsers.rating + increment)
+        )
+        await self.session.execute(stmt)
+        await self.session.commit()
+
     async def get_rating_by_user_id(self, user_id: int) -> Optional[int]:
         stmt = select(RatingUsers.rating).where(RatingUsers.user_id == user_id)
         result = await self.session.execute(stmt)

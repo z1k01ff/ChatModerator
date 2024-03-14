@@ -42,6 +42,8 @@ async def help_cmd(message: types.Message):
 /title [титул*] - Встановити титул (можна відправити відповідь на повідомлення, щоб встановити титул користувачу)
 
 {warning}
+
+Підвищити рейтинг разово можна на 100, якщо задонатити <a href='https://send.monobank.ua/8JGpgvcggd'>сюди 2$</a>
 """.format(
         header1=hbold("Основні команди"),
         header2=hbold("Адміністрування"),

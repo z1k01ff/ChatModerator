@@ -11,4 +11,13 @@ class RatingFilter(BaseFilter):
     async def __call__(self, obj: Message, repo: RequestsRepo) -> bool:
         user_id = obj.from_user.id
         user_rating = await repo.rating_users.get_rating_by_user_id(user_id)
-        return user_rating is not None and user_rating > self.rating
+        if not user_rating:
+            return False
+
+        if user_rating > self.rating:
+            return True
+        else:
+            rating_left = self.rating - user_rating
+            await obj.answer(
+                f"Вам не вистачає {rating_left} рейтингу для виконання цієї дії"
+            )

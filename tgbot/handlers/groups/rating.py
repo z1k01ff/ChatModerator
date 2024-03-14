@@ -82,9 +82,11 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     current_helpers = await repo.rating_users.get_top_by_rating(50)
     current_helpers_dict = {user_id: rating for user_id, rating in current_helpers}
 
-    premier_league = []
-    championship_league = []
-    league_one = []
+    hetmans = []
+    otamans = []
+    cossacs = []
+    pig_herder = []
+
     for user_id, rating in current_helpers:
         profile = await get_profile_cached(state.storage, m.chat.id, user_id, bot)
         if not profile:
@@ -98,11 +100,13 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
         helper_entry = (rating, change, profile)
         # Categorize helpers into leagues based on rating
         if rating > 300:
-            premier_league.append(helper_entry)
+            hetmans.append(helper_entry)
         elif 100 < rating <= 300:
-            championship_league.append(helper_entry)
-        elif len(league_one) < 20:
-            league_one.append(helper_entry)
+            otamans.append(helper_entry)
+        elif 50 < rating <= 100:
+            cossacs.append(helper_entry)
+        elif len(pig_herder) < 10:
+            pig_herder.append(helper_entry)
 
     await state.storage.update_data(
         key=history_key, data={"top_helpers": current_helpers_dict}
@@ -119,17 +123,19 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
 
     text = "\n\n".join(
         [
-            format_league(premier_league, "Гетьмани", "🦄"),
-            format_league(championship_league, "Отамани", "🐘"),
-            format_league(league_one, "Козаки", "🐥"),
+            format_league(hetmans, "Гетьмани", "🦄"),
+            format_league(otamans, "Отамани", "🐘"),
+            format_league(cossacs, "Козаки", "🐥"),
+            format_league(pig_herder, "Свинопаси", "👩‍🌾"),
         ]
     )
 
     text += """
 
 <b>Права хелперів:</b>
-- <b>Гетьмани</b> можуть змінювати встановлювати собі і <b>Козакам</b> кастомні титули.
-- <b>Отамани</b> можуть встановлювати кастомні титули тільки собі.
+- <b>🦄Гетьмани</b> можуть змінювати встановлювати собі і <b>🐥Козакам</b> і <b>👩‍🌾Свинопасам</b> кастомні титули.
+- <b>🐘Отамани</b> можуть встановлювати кастомні титули тільки собі.
+- Всі окрім <b>👩‍🌾Свинопасів</b> можуть користуватися командою /ai
 
 <b>Правила:</b>
 - Ставьте реакції на повідомлення, деякі позитивні реакції збільшують рейтинг на 1, деякі негативні зменшують на 3.
@@ -226,3 +232,13 @@ async def add_reaction_rating_handler(
         reaction.user.mention_html(reaction.user.first_name),
         helper.user.mention_html(helper.user.first_name),
     )
+
+
+@groups_rating_router.message(
+    Command("topup"),
+    F.from_user.id == 362089194,
+    F.reply_to_message.from_user.id.as_("target_id"),
+)
+async def topup_user(message: types.Message, target_id: int, repo: RequestsRepo):
+    await repo.rating_users.increment_rating_by_user_id(target_id, 100)
+    await message.answer("Рейтинг поповнено на 100")

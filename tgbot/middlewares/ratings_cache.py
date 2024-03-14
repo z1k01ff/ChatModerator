@@ -23,9 +23,8 @@ class RatingCacheMessageMiddleware(BaseMiddleware):
             return await handler(m, data)
 
         user_id = m.from_user.id  # айди юзера, который поставил + или -
-        message_id = m.reply_to_message.message_id
 
-        cached = is_rating_cached(m.chat.id, user_id, message_id, ratings_cache)
+        cached = is_rating_cached(m.chat.id, user_id, ratings_cache)
         if cached:
             await m.delete()
             return
