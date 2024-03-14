@@ -1,12 +1,9 @@
-"""This module contains playful handlers.
-Don't take them too seriously, but they are quite useful."""
-
 import random
 import re
 from random import randint
 
 from aiogram import Router, flags, types
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 
 from tgbot.misc.parse_numbers import generate_num
 
@@ -94,7 +91,7 @@ def select_emoji(length, is_biba):
 # Implementing rate limits
 @fun_router.message(Command("gay", prefix="!/"))
 @flags.rate_limit(limit=120, key="gay")
-async def gay(message: types.Message):
+async def gay(message: types.Message, command: CommandObject):
     """Handler for the /gay command.
     In a humorous and respectful manner, the bot sends a random percentage reflecting a playful take on the user's alignment with a random LGBTQ+ orientation.
 
@@ -105,9 +102,13 @@ async def gay(message: types.Message):
     # Reference the original message's author if it's a reply; otherwise, the command user.
 
     target = (
-        message.reply_to_message.from_user.mention_html()
-        if message.reply_to_message
-        else message.from_user.mention_html()
+        command.args
+        if command.args
+        else (
+            message.reply_to_message.from_user.mention_html()
+            if message.reply_to_message
+            else message.from_user.mention_html()
+        )
     )
 
     percentage = randint(0, 100)

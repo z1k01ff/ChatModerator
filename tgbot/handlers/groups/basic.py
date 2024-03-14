@@ -35,21 +35,16 @@ async def help_cmd(message: types.Message):
 /ban - Забанити користувача
 /unban - Розбанити користувача
 
-{header3}
-/set_photo - Змінити фотку
-/set_title - Змінити назву
-/set_description - Змінити опис
-
 {header4}
 /gay [ціль*] - Тест на гея
 /biba - Перевірити бібу
 /top_helpers - Топ хелперів
+/title [титул*] - Встановити титул (можна відправити відповідь на повідомлення, щоб встановити титул користувачу)
 
 {warning}
 """.format(
         header1=hbold("Основні команди"),
         header2=hbold("Адміністрування"),
-        header3=hbold("Робота з групою"),
         header4=hbold("Інші команди"),
         warning=hbold(
             "У групах функціонал бота може відрізнятися.\n"

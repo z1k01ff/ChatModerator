@@ -6,6 +6,7 @@ import re
 from aiogram import Bot, F, Router, types
 from aiogram.filters import Command
 
+from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.filters.permissions import HasPermissionsFilter
 from tgbot.filters.rating import RatingFilter
 from tgbot.misc.permissions import (
@@ -554,6 +555,11 @@ async def promote_user(message: types.Message, bot: Bot):
 )
 @groups_moderate_router.message(
     Command("title", prefix="/!"),
+    F.reply_to_message.from_user.as_("target"),
+    RatingFilter(rating=300),
+)
+@groups_moderate_router.message(
+    Command("title", prefix="/!"),
     ~F.reply_to_message,
     F.from_user.as_("member_self"),
     RatingFilter(rating=100),
@@ -566,12 +572,23 @@ async def promote_user(message: types.Message, bot: Bot):
 async def promote_with_title(
     message: types.Message,
     bot: Bot,
+    repo: RequestsRepo,
     member: types.User | None = None,
+    target: types.User | None = None,
     member_self: types.User | None = None,
 ):
     if member_self:
         member = member_self
         admin = await bot.get_me()
+    elif target:
+        admin = message.from_user
+        target_rating = await repo.rating_users.get_rating_by_user_id(target.id)
+        if target_rating > 100:
+            return await message.answer(
+                "Користувач має рейтинг більше 100, і має імунітет від цієї команди"
+            )
+        member = target
+
     else:
         admin = message.from_user
 

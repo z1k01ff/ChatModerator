@@ -78,15 +78,13 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     history_key = StorageKey(bot_id=bot.id, user_id=m.chat.id, chat_id=m.chat.id)
     state_data = await state.storage.get_data(key=history_key)
     previous_helpers = state_data.get("top_helpers", {})
-    logging.info(f"Previous helpers: {previous_helpers}")
 
-    # Fetch the current top helpers and their ratings
-    current_helpers = await repo.rating_users.get_top_by_rating(30)
+    current_helpers = await repo.rating_users.get_top_by_rating(50)
     current_helpers_dict = {user_id: rating for user_id, rating in current_helpers}
 
-    # Prepare the list of helpers with their rating changes
-    helpers_with_changes = []
-    users_100_plus = []
+    premier_league = []
+    championship_league = []
+    league_one = []
     for user_id, rating in current_helpers:
         profile = await get_profile_cached(state.storage, m.chat.id, user_id, bot)
         if not profile:
@@ -97,56 +95,48 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
         change = (
             f"⬆️ {change}" if change > 0 else f"🔻 {abs(change)}" if change < 0 else ""
         )
-        if rating > 100 and previous_rating <= 100:
-            users_100_plus.append(profile)
+        helper_entry = (rating, change, profile)
+        # Categorize helpers into leagues based on rating
+        if rating > 300:
+            premier_league.append(helper_entry)
+        elif 100 < rating <= 300:
+            championship_league.append(helper_entry)
+        elif len(league_one) < 20:
+            league_one.append(helper_entry)
 
-        helpers_with_changes.append((rating, change, profile))
-
-    helpers_with_changes = helpers_with_changes[:20]
-    # Save the current state for comparison in the next command execution
     await state.storage.update_data(
         key=history_key, data={"top_helpers": current_helpers_dict}
     )
 
-    # Formatting the message with emojis indicating rating changes
-    emoji_for_top = [
-        "🦄",
-        "🐉",
-        "🦁",
-        "🐅",
-        "🦅",
-        "🐘",
-        "🐬",
-        "🦜",
-        "🦢",
-        "🐢",
-        "🐰",
-        "🦊",
-        "🐒",
-        "🐿️",
-        "🐛",
-        "🦋",
-        "🐞",
-        "🐧",
-        "🦉",
-        "🐥",
-    ]
+    def format_league(league, league_name, emoji):
+        formatted_entries = "\n".join(
+            [
+                f"<b>{number}) {emoji} " f"{profile} ( {rating} ) {change}</b>"
+                for number, (rating, change, profile) in enumerate(league, 1)
+            ]
+        )
+        return f"<b>{league_name}:</b>\n{formatted_entries}"
 
-    tops = "\n".join(
+    text = "\n\n".join(
         [
-            f"<b>{number}) {emoji_for_top[number - 1] if number <= len(emoji_for_top) else ''} "
-            f"{profile} ( {rating} ) {change}</b>"
-            for number, (rating, change, profile) in enumerate(helpers_with_changes, 1)
+            format_league(premier_league, "Гетьмани", "🦄"),
+            format_league(championship_league, "Отамани", "🐘"),
+            format_league(league_one, "Козаки", "🐥"),
         ]
     )
-    text = f"Топ Хелперів:\n{tops}"
-    if users_100_plus:
-        text += (
-            "\n\nТакож, користувачі: "
-            + ", ".join([profile for profile in users_100_plus])
-            + " мають рейтинг більше 100, і тепер можуть ставити собі кастомний титул командою <code>/title титул</code>"
-        )
 
+    text += """
+
+<b>Права хелперів:</b>
+- <b>Гетьмани</b> можуть змінювати встановлювати собі і <b>Козакам</b> кастомні титули.
+- <b>Отамани</b> можуть встановлювати кастомні титули тільки собі.
+
+<b>Правила:</b>
+- Ставьте реакції на повідомлення, деякі позитивні реакції збільшують рейтинг на 1, деякі негативні зменшують на 3.
+- Ви не можете змінювати рейтинг собі
+- За 3 хвилини ви можете змінити рейтинг не більше 5 користувачам
+- Ви не можете змінювати часто рейтинг одному користувачу
+"""
     await m.answer(text, disable_notification=True)
 
 
