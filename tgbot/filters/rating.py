@@ -18,6 +18,6 @@ class RatingFilter(BaseFilter):
             return {"rating": user_rating}
         else:
             rating_left = self.rating - user_rating
-            await obj.answer(
+            await obj.reply(
                 f"Вам не вистачає {rating_left} рейтингу для виконання цієї дії"
             )

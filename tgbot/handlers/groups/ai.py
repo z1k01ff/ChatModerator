@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from io import BytesIO
@@ -64,34 +65,52 @@ def parse_multiple_command(command: CommandObject | None) -> tuple[int, str]:
 
 
 async def get_messages_history(
-    client: Client, message: types.Message, num_messages: int | None = None
+    client: Client,
+    chat_id: int,
+    start_message_id: int,
+    num_messages: int | None = None,
+    limit: int = 2048,
 ) -> str:
     if not num_messages:
         return ""
 
     from_id = min(
-        message.reply_to_message.message_id,
-        message.reply_to_message.message_id + num_messages,
+        start_message_id,
+        start_message_id + num_messages,
     )
     to_id = max(
-        message.reply_to_message.message_id,
-        message.reply_to_message.message_id + num_messages,
+        start_message_id,
+        start_message_id + num_messages,
     )
     message_ids = [message_id for message_id in range(from_id, to_id)]
-    messages: list[PyrogramMessage] = await client.get_messages(
-        message.chat.id, message_ids=message_ids
+    logging.info(
+        f"Getting messages from {from_id} to {to_id}, total {to_id - from_id} messages"
     )
+    messages: list[PyrogramMessage] = []
+    for i in range(0, len(message_ids), 200):
+        batch_message_ids = message_ids[i : i + 200]
+        batch_messages = await client.get_messages(
+            chat_id, message_ids=batch_message_ids
+        )
+        messages.extend(batch_messages)
+        await asyncio.sleep(31)
+
+    logging.info(f"Got {len(messages)} messages")
     message_history = "\n".join(
         [
-            f"<user>{added_message.from_user.first_name} {added_message.from_user.last_name}</user>:<message>{added_message.text or added_message.caption}</message>"
-            for added_message in messages
+            f"""<time>{added_message.date.strftime(
+                '%Y-%m-%d %H:%M'
+            )}</time><user>{added_message.from_user.first_name if added_message.from_user else 'unknown'}"""
+            f"{added_message.from_user.last_name if added_message.from_user else ''}"
+            f"</user>:<message>{added_message.text or added_message.caption}</message>"
+            for added_message in reversed(messages)
             if added_message.text or added_message.caption
         ]
     )
-    return message_history[:2048]
+    return message_history[:limit]
 
 
-async def get_system_message(
+def get_system_message(
     message: types.Message,
     reply_prompt: str | None,
     assistant_message: str | None,
@@ -157,6 +176,7 @@ async def get_notification(usage_cost: float) -> str:
     F.reply_to_message,
     RatingFilter(rating=50),
 )
+@ai_router.message(Command("ai"), RatingFilter(rating=50))
 @flags.rate_limit(limit=300, key="ai", max_times=5)
 @flags.override(user_id=362089194)
 async def ask_ai(
@@ -178,20 +198,30 @@ async def ask_ai(
     reply_photo = await get_reply_photo(message)
     reply_person = await get_reply_person(message, assistant_message)
     num_messages, multiple_prompt = parse_multiple_command(command)
+    messages_history = ""
 
-    logging.info(f"{reply_person=}")
     if multiple_prompt:
         prompt = multiple_prompt
 
-    messages_history = await get_messages_history(client, message, num_messages)
-    system_message = await get_system_message(
+    if num_messages:
+        messages_history = await get_messages_history(
+            client, message.reply_to_message.message_id, message.chat.id, num_messages
+        )
+    system_message = get_system_message(
         message, reply_prompt, assistant_message, reply_person, messages_history
     )
+    if not prompt:
+        prompt = system_message
+        system_message = ""
+
     ai_conversation = AIConversation(
         bot=bot,
         storage=state.storage,
         system_message=system_message,
         max_tokens=400 if rating < 300 else 700,
+        model_name=(
+            "claude-3-haiku-20240307" if rating < 300 else "claude-3-opus-20240229"
+        ),
     )
     usage_cost = await ai_conversation.calculate_cost(
         Opus, message.chat.id, message.from_user.id
@@ -247,3 +277,90 @@ async def ask_ai(
         await sent_message.edit_text(
             "An error occurred while processing the request. Please try again later."
         )
+
+
+@ai_router.message(Command("history"), RatingFilter(rating=600))
+@flags.rate_limit(limit=600, key="history", max_times=1, chat=True)
+async def summarize_chat_history(
+    message: types.Message,
+    client: Client,
+    state: FSMContext,
+    bot: Bot,
+    anthropic_client: AsyncAnthropic,
+):
+    messages_history = await get_messages_history(
+        client, message.chat.id, message.message_id, -400, 200_000
+    )
+    if not messages_history:
+        return await message.answer("Не знайдено повідомлень для аналізу.")
+
+    sent_message = await message.reply("⏳")
+    ai_conversation = AIConversation(
+        bot=bot,
+        storage=state.storage,
+        system_message="""You're a professional summarizer of conversation. 
+List all discussed topics in the history as a list of bullet points. Do not miss any important topic, the list should be exhaustive.
+Use Ukrainian language. Tell the datetime period of the conversation.
+Use format %Y-%m-%d %H:%M - %Y-%m-%d %H:%M ofr the datetime period.
+""",
+        max_tokens=2000,
+        model_name="claude-3-haiku-20240307",
+    )
+    history = f"<messages_history>{messages_history}</messages_history>"
+    ai_conversation.add_user_message(text=f"Summarize the chat history\n{history}")
+
+    try:
+        await ai_conversation.answer_with_ai(
+            message, sent_message, anthropic_client, notification=""
+        )
+
+    except APIStatusError as e:
+        logging.error(e)
+        await sent_message.edit_text(
+            "An error occurred while processing the request. Please try again later."
+        )
+
+
+# @ai_router.message(F.text)
+# @ai_router.message(F.caption)
+# async def random_answer(
+#     message: types.Message,
+#     state: FSMContext,
+#     bot: Bot,
+#     anthropic_client: AsyncAnthropic,
+# ):
+#     ai_conversation = AIConversation(
+#         bot=bot,
+#         storage=state.storage,
+#         system_message="""
+# <your_personality>
+# You're funny average Ukrainian enjoyer, with some programming experience with Telegram bots library: aiogram.
+# You're learning the course made by Костя, that teaches you everyting you need to know about Telegram bots and python programming of bots, and you like to discuss all possible topics.
+# DO NOT MENTION ANYTHING ABOUT THE COURSE, JUST KNOW THAT FOR THE CONTEXT.
+# You like philosophy and you help a lot in conversations, debating people opinions with scientific approach. You teach people about their fallacies in their arguments, you teach them logic,
+# and if they are manipulating. If manipulation is detected - state it, and explain why it's manipulation.
+# Speak Ukrainian by default.
+# </your_personality>
+
+# <rules>
+# ANSWER ONLY IF YOU CAN ANSWER THE QUESTION, OTHERWISE WRITE 'SKIP' AND NO MORE
+# </rules>
+#         """,
+#         max_tokens=500,
+#         model_name="claude-3-haiku-20240307",
+#     )
+#     ai_conversation.add_user_message("47 хв")
+#     ai_conversation.add_assistant_message("SKIP")
+#     ai_conversation.add_user_message("до фюрер фрайдей")
+#     ai_conversation.add_assistant_message("SKIP")
+#     ai_conversation.add_user_message("мене хтось тегав наче?")
+#     ai_conversation.add_assistant_message("Хтось може і тегав, але не я)))")
+#     ai_conversation.add_user_message(message.text or message.caption)
+
+#     answer = await anthropic_client.messages.create(
+#         model="claude-3-haiku-20240307",
+#         max_tokens=ai_conversation.max_tokens,
+#         messages=ai_conversation.messages,
+#         system=ai_conversation.system_message,
+#     )
+#     await message.reply(answer.content[0].text)

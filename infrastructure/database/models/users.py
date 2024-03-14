@@ -1,10 +1,7 @@
-from openai import chat
-from .base import Base, TimestampMixin, TableNameMixin
-
-from sqlalchemy import BIGINT, String, Integer
+from sqlalchemy import BIGINT, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, TimestampMixin, TableNameMixin
+from .base import Base, TableNameMixin, TimestampMixin
 
 
 class BannedStickers(Base, TimestampMixin, TableNameMixin):
@@ -40,4 +37,3 @@ class RatingUsers(Base, TimestampMixin, TableNameMixin):
 
     def __repr__(self):
         return f"<RatingUsers user_id={self.user_id} rating={self.rating}>"
-

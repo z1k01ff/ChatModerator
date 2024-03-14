@@ -54,26 +54,35 @@ async def process_new_rating(
     helper_id: int,
     mention_from: str,
     mention_reply: str,
-):
-    rating_user = await change_rating(helper_id, rating_change, repo)
+) -> tuple[int, str] | None:
+    previous_rating, new_rating = await change_rating(helper_id, rating_change, repo)
 
     if rating_change > 0:
         text = (
             f"{mention_from} <b>підвищив рейтинг на {rating_change} користувачу</b> {mention_reply} 😳 \n"
-            f"<b>Поточний рейтинг: {rating_user}</b>"
+            f"<b>Поточний рейтинг: {new_rating}</b>"
         )
     else:
         text = (
             f"{mention_from} <b>знизив рейтинг на {-rating_change} користувачу</b> {mention_reply} 😳 \n"
-            f"<b>Поточний рейтинг: {rating_user}</b>"
+            f"<b>Поточний рейтинг: {new_rating}</b>"
         )
     logging.info(text)
-    return text
+
+    milestones = [50, 100, 300]
+    for milestone in milestones:
+        if previous_rating < milestone <= new_rating:
+            if milestone == 300:
+                return new_rating, "🦄 Гетьман"
+            elif milestone == 100:
+                return new_rating, "🐘 Отаман"
+            elif milestone == 50:
+                return new_rating, "🐥 Козак"
 
 
 @groups_rating_router.message(Command("top_helpers"))
 @flags.override(user_id=362089194)
-@flags.rate_limit(limit=30, key="top_helpers")
+@flags.rate_limit(limit=30, key="top_helpers", chat=True)
 async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
     history_key = StorageKey(bot_id=bot.id, user_id=m.chat.id, chat_id=m.chat.id)
     state_data = await state.storage.get_data(key=history_key)
@@ -82,6 +91,8 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     current_helpers = await repo.rating_users.get_top_by_rating(50)
     current_helpers_dict = {user_id: rating for user_id, rating in current_helpers}
 
+    kings = []
+    sorcerers = []
     hetmans = []
     otamans = []
     cossacs = []
@@ -99,11 +110,15 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
         )
         helper_entry = (rating, change, profile)
         # Categorize helpers into leagues based on rating
-        if rating > 300:
+        if rating >= 1000:
+            kings.append(helper_entry)
+        elif 600 <= rating < 1000:
+            sorcerers.append(helper_entry)
+        elif 300 <= rating < 600:
             hetmans.append(helper_entry)
-        elif 100 < rating <= 300:
+        elif 100 <= rating < 300:
             otamans.append(helper_entry)
-        elif 50 < rating <= 100:
+        elif 50 <= rating <= 100:
             cossacs.append(helper_entry)
         elif len(pig_herder) < 10:
             pig_herder.append(helper_entry)
@@ -113,6 +128,9 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     )
 
     def format_league(league, league_name, emoji):
+        if not league:
+            return ""
+
         formatted_entries = "\n".join(
             [
                 f"<b>{number}) {emoji} " f"{profile} ( {rating} ) {change}</b>"
@@ -123,6 +141,8 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
 
     text = "\n\n".join(
         [
+            format_league(kings, "Королі", "👑"),
+            format_league(sorcerers, "Чаклуни", "🧙‍♂️"),
             format_league(hetmans, "Гетьмани", "🦄"),
             format_league(otamans, "Отамани", "🐘"),
             format_league(cossacs, "Козаки", "🐥"),
@@ -130,12 +150,13 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
         ]
     )
 
+    # - <b>👑Королі</b>
     text += """
-
 <b>Права хелперів:</b>
-- <b>🦄Гетьмани</b> можуть змінювати встановлювати собі і <b>🐥Козакам</b> і <b>👩‍🌾Свинопасам</b> кастомні титули.
+- <b>🧙‍♂️Чаклуни</b> можуть використовувати команду /history, щоб отримати які теми обговорювались за останні 400 повідомлень.
+- <b>🦄Гетьмани</b> можуть змінювати встановлювати собі, <b>🐥Козакам</b> і <b>👩‍🌾Свинопасам</b> кастомні титули.
 - <b>🐘Отамани</b> можуть встановлювати кастомні титули тільки собі.
-- Всі окрім <b>👩‍🌾Свинопасів</b> можуть користуватися командою /ai
+- <b>👩‍🌾Свинопаси</b> не можуть користуватися командою /ai
 
 <b>Правила:</b>
 - Ставьте реакції на повідомлення, деякі позитивні реакції збільшують рейтинг на 1, деякі негативні зменшують на 3.
@@ -225,13 +246,19 @@ async def add_reaction_rating_handler(
         return
     helper = await bot.get_chat_member(reaction.chat.id, helper_id)
 
-    await process_new_rating(
+    upgraded = await process_new_rating(
         rating_change,
         repo,
         helper_id,
         reaction.user.mention_html(reaction.user.first_name),
         helper.user.mention_html(helper.user.first_name),
     )
+    if upgraded:
+        new_rating, title = upgraded
+        await bot.send_message(
+            reaction.chat.id,
+            f"🎉 Вітаємо {helper.user.mention_html(helper.user.first_name)}! Досягнутий рівень: {title}! 🎉",
+        )
 
 
 @groups_rating_router.message(

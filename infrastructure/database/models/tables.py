@@ -6,9 +6,6 @@ from .base import Base, TableNameMixin
 
 class BannedStickers(Base):
     __tablename__ = "BannedStickers"
-    """
-    Represents a banned sticker set in the application.
-    """
     set_name: Mapped[str] = mapped_column(String(255), primary_key=True)
 
     def __repr__(self):

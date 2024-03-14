@@ -38,6 +38,9 @@ class ThrottlingMiddleware(BaseMiddleware):
         limit = rate_limit.get("limit", 30)
         key = f"{key_prefix}:{user_id}"
         max_times = rate_limit.get("max_times", 1)
+        chat_marker = data.get("chat")
+        if chat_marker:
+            key = f"{key_prefix}:{event.chat.id}"
 
         if self._should_throttle(key, now, limit, max_times):
             logging.info(f"Throttling {user_id} for {key_prefix}")

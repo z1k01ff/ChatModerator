@@ -1,5 +1,4 @@
 import base64
-import logging
 import random
 import time
 from dataclasses import dataclass
@@ -52,13 +51,13 @@ class AIConversation(TokenUsageManager):
         bot: Bot,
         messages: List[types.MessageParam] | None = None,
         max_tokens: int = 450,
-        _model_name: str = "claude-3-opus-20240229",
+        model_name: str = "claude-3-opus-20240229",
         system_message: Optional[str] = None,
     ):
         super().__init__(storage, bot)
         self.messages: list[types.MessageParam] = messages or []
         self.max_tokens = max_tokens
-        self._model_name = _model_name
+        self._model_name = model_name
         self.system_message = system_message
         self.conversation_log = ""
 
@@ -106,7 +105,8 @@ class AIConversation(TokenUsageManager):
             )
         else:
             # log all messages to send (no need to show photo content, since its bytes):
-            logging.info(self.conversation_log)
+            # logging.info(self.conversation_log)
+            pass
 
         async with ai_client.messages.stream(
             max_tokens=self.max_tokens,
