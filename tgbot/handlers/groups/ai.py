@@ -211,8 +211,11 @@ async def ask_ai(
         message, reply_prompt, assistant_message, reply_person, messages_history
     )
     if not prompt:
-        prompt = system_message
-        system_message = ""
+        if command and command.args:
+            prompt = command.args
+        else:
+            prompt = system_message
+            system_message = ""
 
     ai_conversation = AIConversation(
         bot=bot,

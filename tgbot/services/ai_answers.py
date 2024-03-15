@@ -1,4 +1,5 @@
 import base64
+import logging
 import random
 import time
 from dataclasses import dataclass
@@ -105,7 +106,7 @@ class AIConversation(TokenUsageManager):
             )
         else:
             # log all messages to send (no need to show photo content, since its bytes):
-            # logging.info(self.conversation_log)
+            logging.info(self.conversation_log)
             pass
 
         async with ai_client.messages.stream(
