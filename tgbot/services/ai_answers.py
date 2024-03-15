@@ -107,7 +107,7 @@ class AIConversation(TokenUsageManager):
             )
         else:
             # log all messages to send (no need to show photo content, since its bytes):
-            logging.info(self.conversation_log)
+            logging.info(self.system_message + "\n\n" + self.conversation_log)
             pass
 
         async with ai_client.messages.stream(
