@@ -94,6 +94,7 @@ class AIConversation(TokenUsageManager):
         sent_message: Message,
         ai_client: AsyncAnthropic,
         notification: str | None = None,
+        apply_formatting: bool = True,
     ) -> int:
         last_time = time.time()
         text = ""
@@ -119,18 +120,21 @@ class AIConversation(TokenUsageManager):
                 text += partial_text
                 if time.time() - last_time > 5:
                     cont_symbol = random.choice(["▌", "█"])
+                    formatted_text = telegram_format(text) if apply_formatting else text
                     await sent_message.edit_text(
-                        f"{notification}\n\n" + telegram_format(text) + cont_symbol,
-                        parse_mode="HTML",
+                        f"{notification}\n\n{formatted_text}{cont_symbol}",
+                        parse_mode="HTML" if apply_formatting else None,
                         disable_web_page_preview=True,
                     )
                     last_time = time.time()
 
         final_text = await stream.get_final_text()
+        formatted_text = telegram_format(final_text) if apply_formatting else final_text
         await sent_message.edit_text(
-            f"{notification}\n\n" + telegram_format(final_text),
+            f"{notification}\n\n{formatted_text}",
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
+        logging.info(f"AI: {final_text}")
         await message.react(reaction=[ReactionTypeEmoji(emoji="👨‍💻")], is_big=True)
         return (await stream.get_final_message()).usage.input_tokens

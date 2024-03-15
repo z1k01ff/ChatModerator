@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import re
 from io import BytesIO
@@ -93,7 +92,6 @@ async def get_messages_history(
             chat_id, message_ids=batch_message_ids
         )
         messages.extend(batch_messages)
-        await asyncio.sleep(31)
 
     logging.info(f"Got {len(messages)} messages")
     message_history = "\n".join(
@@ -102,9 +100,10 @@ async def get_messages_history(
                 '%Y-%m-%d %H:%M'
             )}</time><user>{added_message.from_user.first_name if added_message.from_user else 'unknown'}"""
             f"{added_message.from_user.last_name if added_message.from_user else ''}"
-            f"</user>:<message>{added_message.text or added_message.caption}</message>"
+            f"</user>:<message>{added_message.text or added_message.caption}</message><message_url>{added_message.link}</message_url>"
             for added_message in reversed(messages)
-            if added_message.text or added_message.caption
+            if (added_message.text or added_message.caption)
+            and added_message.from_user.id != ASSISTANT_ID
         ]
     )
     return message_history[:limit]
@@ -157,6 +156,55 @@ async def get_notification(usage_cost: float) -> str:
     if usage_cost > 0.5:
         return f"⚠️ За весь час ви вже використали ${usage_cost}, будь ласка задонатьте трошки {hlink('сюди', 'https://send.monobank.ua/8JGpgvcggd')}"
     return ""
+
+
+@ai_router.message(Command("history"), RatingFilter(rating=600))
+@flags.rate_limit(limit=600, key="history", max_times=1, chat=True)
+async def summarize_chat_history(
+    message: types.Message,
+    client: Client,
+    state: FSMContext,
+    bot: Bot,
+    anthropic_client: AsyncAnthropic,
+):
+    sent_message = await message.reply("⏳")
+    messages_history = await get_messages_history(
+        client, message.chat.id, message.message_id, -200, 200_000
+    )
+    if not messages_history:
+        return await message.answer("Не знайдено повідомлень для аналізу.")
+
+    ai_conversation = AIConversation(
+        bot=bot,
+        storage=state.storage,
+        system_message="""You're a professional summarizer of conversation. 
+List all discussed topics in the history as a list of bullet points. Do not miss any important topic, the list should be exhaustive, but not more than 30 topics.
+Use Ukrainian language. Tell the datetime period of the earliest message (e.g. 2022-03-07 12:00).
+Format each bullet point as follows:
+• <a href='{message url}}'>{topic description (not each message)}</a>
+The url should be as it is, and point to the earliest message of the topic.
+Make sure to close all the 'a' tags properly.
+""",
+        max_tokens=2000,
+        model_name="claude-3-haiku-20240307",
+    )
+    history = f"<messages_history>{messages_history}</messages_history>"
+    ai_conversation.add_user_message(text=f"Summarize the chat history\n{history}")
+
+    try:
+        await ai_conversation.answer_with_ai(
+            message,
+            sent_message,
+            anthropic_client,
+            notification="",
+            apply_formatting=False,
+        )
+
+    except APIStatusError as e:
+        logging.error(e)
+        await sent_message.edit_text(
+            "An error occurred while processing the request. Please try again later."
+        )
 
 
 @ai_router.message(Command("ai", magic=F.args.as_("prompt")), RatingFilter(rating=50))
@@ -275,48 +323,6 @@ async def ask_ai(
             input_usage,
             ai_conversation.max_tokens * 0.75,
         )
-    except APIStatusError as e:
-        logging.error(e)
-        await sent_message.edit_text(
-            "An error occurred while processing the request. Please try again later."
-        )
-
-
-@ai_router.message(Command("history"), RatingFilter(rating=600))
-@flags.rate_limit(limit=600, key="history", max_times=1, chat=True)
-async def summarize_chat_history(
-    message: types.Message,
-    client: Client,
-    state: FSMContext,
-    bot: Bot,
-    anthropic_client: AsyncAnthropic,
-):
-    messages_history = await get_messages_history(
-        client, message.chat.id, message.message_id, -400, 200_000
-    )
-    if not messages_history:
-        return await message.answer("Не знайдено повідомлень для аналізу.")
-
-    sent_message = await message.reply("⏳")
-    ai_conversation = AIConversation(
-        bot=bot,
-        storage=state.storage,
-        system_message="""You're a professional summarizer of conversation. 
-List all discussed topics in the history as a list of bullet points. Do not miss any important topic, the list should be exhaustive.
-Use Ukrainian language. Tell the datetime period of the conversation.
-Use format %Y-%m-%d %H:%M - %Y-%m-%d %H:%M ofr the datetime period.
-""",
-        max_tokens=2000,
-        model_name="claude-3-haiku-20240307",
-    )
-    history = f"<messages_history>{messages_history}</messages_history>"
-    ai_conversation.add_user_message(text=f"Summarize the chat history\n{history}")
-
-    try:
-        await ai_conversation.answer_with_ai(
-            message, sent_message, anthropic_client, notification=""
-        )
-
     except APIStatusError as e:
         logging.error(e)
         await sent_message.edit_text(
