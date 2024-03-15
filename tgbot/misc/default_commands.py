@@ -11,6 +11,7 @@ async def set_default_commands(bot: Bot):
         "ai": "ШІ відповідь",
         "title": "Встановити титул",
         "help": "Інформація про бота",
+        "history": "Історія чату",
     }
 
     command_defaults = {"help": "Допоможіть мені"}

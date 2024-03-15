@@ -101,7 +101,7 @@ async def get_messages_history(
             )}</time><user>{added_message.from_user.first_name if added_message.from_user else 'unknown'}"""
             f"{added_message.from_user.last_name if added_message.from_user else ''}"
             f"</user>:<message>{added_message.text or added_message.caption}</message><message_url>{added_message.link}</message_url>"
-            for added_message in reversed(messages)
+            for added_message in messages
             if (added_message.text or added_message.caption)
             and added_message.from_user.id != ASSISTANT_ID
         ]
@@ -186,13 +186,39 @@ async def summarize_chat_history(
     ai_conversation = AIConversation(
         bot=bot,
         storage=state.storage,
-        system_message="""You're a professional summarizer of conversation. 
-List all discussed topics in the history as a list of bullet points. Do not miss any important topic, the list should be exhaustive, but not more than 30 topics.
+        system_message="""You're a professional summarizer of conversation. You take all messages at determine the most important topics in the conversation.
+List all discussed topics in the history as a list of bullet points.
 Use Ukrainian language. Tell the datetime period of the earliest message (e.g. 2022-03-07 12:00).
 Format each bullet point as follows:
-• <a href='{message url}}'>{topic description (not each message)}</a>
-The url should be as it is, and point to the earliest message of the topic.
+• <a href='{earliest message url}}'>{TOPIC}</a>
+The url should be as it is, and point to the earliest message of the sumarized topic.
 Make sure to close all the 'a' tags properly.
+<important_rules>
+- DO NOT WRITE MESSAGES VERBATIM, JUST SUMMARIZE THEM.
+- List not more than 30 topics.
+- The topic descriptions should be distinct and descriptive.
+</important_rule>
+<example_input>
+<time>2024-03-15 10:05</time><user>AlexSmith</user>:<message>Hey, does anyone know how we can request the history of this chat? I need it for our monthly review.</message><message_url>https://t.me/bot_devs_novice/914528</message_url>
+<time>2024-03-15 10:06</time><user>MariaJones</user>:<message>@AlexSmith, I think you can use the chat history request feature in the settings. Just found a link about it.</message><message_url>https://t.me/bot_devs_novice/914529</message_url>
+<time>2024-03-15 10:08</time><user>JohnDoe</user>:<message>Correct, @MariaJones. Also, ensure that you have the admin rights to do so. Sometimes permissions can be tricky.</message><message_url>https://t.me/bot_devs_novice/914530</message_url>
+<time>2024-03-15 11:00</time><user>EmilyClark</user>:<message>Has anyone noticed a drop in subscribers after enabling the new feature on the OpenAI chatbot?</message><message_url>https://t.me/bot_devs_novice/914531</message_url>
+<time>2024-03-15 11:02</time><user>LucasBrown</user>:<message>Yes, @EmilyClark, we experienced the same issue. It seems like the auto-reply feature might be a bit too aggressive.</message><message_url>https://t.me/bot_devs_novice/914532</message_url>
+<time>2024-03-15 11:05</time><user>SarahMiller</user>:<message>I found a workaround for it. Adjusting the sensitivity settings helped us retain our subscribers. Maybe give that a try?</message><message_url>https://t.me/bot_devs_novice/914533</message_url>
+<time>2024-03-15 12:00</time><user>KevinWhite</user>:<message>Hey all, don't forget to vote for the DFS feature! There are rewards for participation.</message><message_url>https://t.me/bot_devs_novice/914534</message_url>
+<time>2024-03-15 12:02</time><user>RachelGreen</user>:<message>@KevinWhite, just voted! Excited about the rewards. Does anyone know when they will be distributed?</message><message_url>https://t.me/bot_devs_novice/914535</message_url>
+<time>2024-03-15 12:04</time><user>LeoThompson</user>:<message>Usually, rewards get distributed a week after the voting ends. Can't wait to see the new features in action!</message><message_url>https://t.me/bot_devs_novice/914536</message_url>
+</example_input>
+<example_format>
+Нижче наведено вичерпний перелік обговорюваних у цьому чаті тем:
+
+• <a href='https://t.me/bot_devs_novice/914528'>Запит на історію чату</a>
+• <a href='https://t.me/bot_devs_novice/914531'>Втрата підписників чат-ботом OpenAI через певну функцію</a>
+• <a href='https://t.me/bot_devs_novice/914534'>Голосування за DFS та винагороди за участь</a>
+...
+
+Найранішим повідомленням у цьому чаті є таке, що датується 2024-03-15 08:13.
+</example_format>
 """,
         max_tokens=2000,
         model_name="claude-3-haiku-20240307",
