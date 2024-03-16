@@ -39,6 +39,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         key = f"{key_prefix}:{user_id}"
         max_times = rate_limit.get("max_times", 1)
         chat_marker = data.get("chat")
+        silent = rate_limit.get("silent", False)
         if chat_marker:
             key = f"{key_prefix}:{event.chat.id}"
 
@@ -46,9 +47,10 @@ class ThrottlingMiddleware(BaseMiddleware):
             logging.info(f"Throttling {user_id} for {key_prefix}")
             if isinstance(event, Message):
                 left_time = limit - (now - self.users[key][0]).seconds
-                await event.answer(
-                    f"Занадто часто! Повторіть спробу через {left_time} секунд"
-                )
+                if not silent:
+                    await event.answer(
+                        f"Занадто часто! Повторіть спробу через {left_time} секунд"
+                    )
             return  # Stop processing if throttled
 
         # Proceed with the next handler if not throttled

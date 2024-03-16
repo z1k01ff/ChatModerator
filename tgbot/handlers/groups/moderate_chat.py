@@ -548,23 +548,23 @@ async def promote_user(message: types.Message, bot: Bot):
 
 
 @groups_moderate_router.message(
-    Command("title", prefix="/!"),
+    Command("title", prefix="/!", magic=F.args.len() > 0),
     F.reply_to_message.from_user.as_("member"),
     HasPermissionsFilter(can_promote_members=True),
 )
 @groups_moderate_router.message(
-    Command("title", prefix="/!"),
+    Command("title", prefix="/!", magic=F.args.len() > 0),
     F.reply_to_message.from_user.as_("member"),
     RatingFilter(rating=300),
 )
 @groups_moderate_router.message(
-    Command("title", prefix="/!"),
+    Command("title", prefix="/!", magic=F.args.len() > 0),
     ~F.reply_to_message,
     F.from_user.as_("member_self"),
     RatingFilter(rating=100),
 )
 @groups_moderate_router.message(
-    Command("title", prefix="/!"),
+    Command("title", prefix="/!", magic=F.args.len() > 0),
     ~F.reply_to_message,
     F.from_user.as_("member_self"),
     HasPermissionsFilter(can_promote_members=True),

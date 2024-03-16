@@ -4,6 +4,7 @@ import logging
 import betterlogging as bl
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.strategy import FSMStrategy
 from aiogram.fsm.storage.redis import DefaultKeyBuilder, RedisStorage
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
@@ -129,7 +130,7 @@ async def main():
         api_hash=config.client.api_hash,
         no_updates=True,  # We don't need to handle incoming updates by client
     )
-    dp = Dispatcher(storage=storage, client=client)
+    dp = Dispatcher(storage=storage, client=client, fsm_strategy=FSMStrategy.CHAT)
     await db.create_tables()
     session_pool = create_session_pool(engine)
     ratings_cache = {}
