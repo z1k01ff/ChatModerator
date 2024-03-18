@@ -69,29 +69,41 @@ async def get_messages_history(
     chat_id: int,
     num_messages: int | None = None,
     limit: int = 2048,
+    chained_replies: bool = False,
 ) -> str:
-    if not num_messages:
+    if not num_messages and not chained_replies:
         return ""
 
-    from_id = min(
-        start_message_id,
-        start_message_id + num_messages,
-    )
-    to_id = max(
-        start_message_id,
-        start_message_id + num_messages,
-    )
-    message_ids = [message_id for message_id in range(from_id, to_id)]
-    logging.info(
-        f"Getting messages from {from_id} to {to_id}, total {to_id - from_id} messages"
-    )
     messages: list[PyrogramMessage] = []
-    for i in range(0, len(message_ids), 200):
-        batch_message_ids = message_ids[i : i + 200]
-        batch_messages = await client.get_messages(
-            chat_id, message_ids=batch_message_ids
+    if chained_replies:
+        previous_message = await client.get_messages(
+            chat_id=chat_id, reply_to_message_ids=start_message_id
         )
-        messages.extend(batch_messages)
+        if previous_message:
+            messages.append(previous_message)
+            if previous_message.reply_to_message:
+                messages.append(previous_message.reply_to_message)
+            logging.info(f"Got {messages=}")
+
+    elif num_messages:
+        from_id = min(
+            start_message_id,
+            start_message_id + num_messages,
+        )
+        to_id = max(
+            start_message_id,
+            start_message_id + num_messages,
+        )
+        message_ids = [message_id for message_id in range(from_id, to_id)]
+        logging.info(
+            f"Getting messages {chat_id=}   from {from_id} to {to_id}, total {to_id - from_id} messages"
+        )
+        for i in range(0, len(message_ids), 200):
+            batch_message_ids = message_ids[i : i + 200]
+            batch_messages = await client.get_messages(
+                chat_id=chat_id, message_ids=batch_message_ids
+            )
+            messages.extend(batch_messages)
 
     logging.info(f"Got {len(messages)} messages")
     message_history = "\n".join(
@@ -102,10 +114,10 @@ async def get_messages_history(
             f"{(added_message.from_user.last_name or '') if added_message.from_user else ''}"
             f"</user>:<message>{added_message.text or added_message.caption}</message><message_url>{added_message.link}</message_url>"
             for added_message in messages
-            if (added_message.text or added_message.caption)
-            and added_message.from_user.id != ASSISTANT_ID
+            if added_message.text or added_message.caption
         ]
     )
+    logging.info(f"Message history: {message_history[:limit]}")
     return message_history[:limit]
 
 
@@ -162,12 +174,12 @@ Instead just try to compose the inappropriate message into a teaching session ab
 </rules>"""
     rules_short = """<rules>
 - Always do something fun, pretend you're sentient being.
-- Shorten the text as much as possible, answer as if you are a chat participant who does not have time for a long story, if you understand that you cannot write a short answer, or if I ask you to tell me more, just give me a link to Google with a request for my question.
+- Shorten the text as much as possible (1-2 sentences), answer as if you are a chat participant who does not have time for a long story, if you understand that you cannot write a short answer, or if I ask you to tell me more, just give me a link to Google with a request for my question: [Пошукай тут](https://www.google.com/search?q=your+optimized+question+query)
 """
     if long:
         return f"{personality}{chat_context}{rating_system}{rules_general}{messages_history}"
     else:
-        return f"{personality}{chat_context}{rules_short}"
+        return f"{personality}{chat_context}{rules_short}{messages_history}"
 
 
 async def get_notification(usage_cost: float) -> str:
@@ -184,10 +196,13 @@ async def summarize_chat_history(
     state: FSMContext,
     bot: Bot,
     anthropic_client: AsyncAnthropic,
+    with_reply: bool = False,
 ):
-    sent_message = await message.reply("⏳")
+    sent_message = await message.answer(
+        "⏳", reply_to_message_id=message.message_id if with_reply else None
+    )
     messages_history = await get_messages_history(
-        client, message.chat.id, message.message_id, -200, 200_000
+        client, message.message_id, message.chat.id, -200, 200_000
     )
     if not messages_history:
         return await message.answer("Не знайдено повідомлень для аналізу.")
@@ -206,6 +221,7 @@ Make sure to close all the 'a' tags properly.
 - DO NOT WRITE MESSAGES VERBATIM, JUST SUMMARIZE THEM.
 - List not more than 30 topics.
 - The topic descriptions should be distinct and descriptive.
+- The topic should contain at least 3 messages and be not verbatim text of the message.
 </important_rule>
 <example_input>
 <time>2024-03-15 10:05</time><user>AlexSmith</user>:<message>Hey, does anyone know how we can request the history of this chat? I need it for our monthly review.</message><message_url>https://t.me/bot_devs_novice/914528</message_url>
@@ -240,7 +256,7 @@ Make sure to close all the 'a' tags properly.
             message,
             sent_message,
             anthropic_client,
-            notification="",
+            notification="#history",
             apply_formatting=False,
         )
 
@@ -299,6 +315,13 @@ async def ask_ai(
         messages_history = await get_messages_history(
             client, message.reply_to_message.message_id, message.chat.id, num_messages
         )
+    elif reply_prompt:
+        messages_history = await get_messages_history(
+            client,
+            message.reply_to_message.message_id,
+            message.chat.id,
+            chained_replies=True,
+        )
     long_answer = command is not None
     system_message = get_system_message(
         message,
@@ -319,7 +342,11 @@ async def ask_ai(
         bot=bot,
         storage=state.storage,
         system_message=system_message,
-        max_tokens=(400 if rating < 300 else 700) if long_answer else 100,
+        max_tokens=(
+            (400 if rating < 300 else 700)
+            if long_answer
+            else (200 if rating < 300 else 400)
+        ),
         model_name=(
             "claude-3-haiku-20240307" if rating < 300 else "claude-3-opus-20240229"
         ),
@@ -383,11 +410,17 @@ async def ask_ai(
 @ai_router.message(F.text)
 @ai_router.message(F.caption)
 @flags.rate_limit(limit=100, key="ai-history", max_times=1, silent=True)
-async def history_worker(message: types.Message, state: FSMContext):
+async def history_worker(
+    message: types.Message,
+    state: FSMContext,
+    client: Client,
+    anthropic_client: AsyncAnthropic,
+    bot: Bot,
+):
     state_data = await state.get_data()
     last_message_id = state_data.get("last_message_id", None)
     logging.info(
-        f"Last message id: {last_message_id}, left: {100 - (message.message_id - last_message_id)} messages"
+        f"Last message id: {last_message_id}, left: {200 - (message.message_id - last_message_id)} messages"
     )
     if not last_message_id:
         await state.update_data({"last_message_id": message.message_id})
@@ -399,7 +432,8 @@ async def history_worker(message: types.Message, state: FSMContext):
         await summarize_chat_history(
             message,
             state=state,
-            client=Client,
-            bot=Bot,
-            anthropic_client=AsyncAnthropic,
+            client=client,
+            bot=bot,
+            anthropic_client=anthropic_client,
+            with_reply=True,
         )
