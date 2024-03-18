@@ -9,6 +9,11 @@ from aiogram.types import (
 from enum import Enum, auto
 
 
+RATING_CACHE_TTL = timedelta(minutes=3)
+POSITIVE_EMOJIS = {"👍", "❤", "🔥", "❤‍🔥", "😁", "🤣"}
+NEGATIVE_EMOJIS = {"👎", "🤡", "💩"}
+
+
 class UserRank(Enum):
     PIG_HERDER = auto()
     COSSACK = auto()
@@ -31,11 +36,6 @@ class UserRank(Enum):
             return cls.COSSACK
         else:
             return cls.PIG_HERDER
-
-
-RATING_CACHE_TTL = timedelta(minutes=3)
-POSITIVE_EMOJIS = {"👍", "❤", "🔥", "❤‍🔥", "😁", "🤣"}
-NEGATIVE_EMOJIS = {"👎", "🤡", "💩"}
 
 
 def get_reaction_change(
