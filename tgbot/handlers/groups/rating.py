@@ -9,10 +9,10 @@ from cachetools import TTLCache
 
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.filters.rating import RatingFilter
-from tgbot.misc.reaction_change import (
+from tgbot.services.rating import (
     NEGATIVE_EMOJIS,
     POSITIVE_EMOJIS,
-    get_reaction_change,
+    reaction_rating_calculator,
 )
 from tgbot.services.cache_profiles import get_profile_cached
 from tgbot.services.rating import change_rating
@@ -224,41 +224,12 @@ async def add_reaction_rating_handler(
     reaction: types.MessageReactionUpdated,
     repo: RequestsRepo,
     bot: Bot,
-    rating: int | None = None,
 ):
-    reaction_change = get_reaction_change(
-        new_reaction=reaction.new_reaction, old_reaction=reaction.old_reaction
-    )
-    if reaction_change == "positive":
-        if rating:
-            if rating > 300:
-                rating_change = 7
-            elif rating > 100:
-                rating_change = 3
-            elif rating > 50:
-                rating_change = 2
-            else:
-                rating_change = 1
-        else:
-            rating_change = 1
-
-    elif reaction_change == "negative" and rating:
-        if rating > 300:
-            rating_change = -10
-        elif rating > 100:
-            rating_change = -5
-        elif rating > 50:
-            rating_change = -3
-        else:
-            rating_change = 0
-    else:
-        rating_change = 0
-
-    if not rating_change:
-        return
-
     helper_id = await repo.message_user.get_user_id_by_message_id(
         reaction.chat.id, reaction.message_id
+    )
+    rating_change = await reaction_rating_calculator(
+        reaction, repo, helper_id, reaction.user.id
     )
     if not helper_id or helper_id == reaction.user.id:
         logging.info(

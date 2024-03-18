@@ -3,7 +3,8 @@ import logging
 from datetime import datetime
 
 from aiogram import Bot
-from aiogram.fsm.storage.redis import RedisStorage, StorageKey
+from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.fsm.storage.base import StorageKey
 from aiogram.utils.markdown import hlink
 
 
