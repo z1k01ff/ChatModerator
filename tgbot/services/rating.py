@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from infrastructure.database.repo.requests import RequestsRepo
 
-RATING_CACHE_TTL = timedelta(minutes=1)
+RATING_CACHE_TTL = timedelta(minutes=3)
 
 
 def is_rating_cached(helper_id: int, user_id: int, ratings_cache: dict) -> bool:

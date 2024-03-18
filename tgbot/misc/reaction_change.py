@@ -10,9 +10,18 @@ def get_reaction_change(old_reaction, new_reaction):
     # Determine the difference
     added = new_set - old_set
 
+    # Determine if the reaction was removed
+    removed = old_set - new_set
+
     # Check if the change is positive or negative
     for emoji in added:
         if emoji in POSITIVE_EMOJIS:
             return "positive"
         elif emoji in NEGATIVE_EMOJIS:
             return "negative"
+
+    for emoji in removed:
+        if emoji in POSITIVE_EMOJIS:
+            return "negative"
+        elif emoji in NEGATIVE_EMOJIS:
+            return "positive"

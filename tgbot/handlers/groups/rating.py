@@ -8,6 +8,7 @@ from aiogram.fsm.storage.base import StorageKey
 from cachetools import TTLCache
 
 from infrastructure.database.repo.requests import RequestsRepo
+from tgbot.filters.rating import RatingFilter
 from tgbot.misc.reaction_change import (
     NEGATIVE_EMOJIS,
     POSITIVE_EMOJIS,
@@ -214,7 +215,8 @@ async def add_rating_handler(m: types.Message, repo: RequestsRepo):
     F.new_reaction[0].emoji.in_(POSITIVE_EMOJIS).as_("positive_rating"),
 )
 @groups_rating_router.message_reaction(
-    F.new_reaction[0].emoji.in_(NEGATIVE_EMOJIS).as_("negative_rating")
+    F.new_reaction[0].emoji.in_(NEGATIVE_EMOJIS).as_("negative_rating"),
+    RatingFilter(rating=50),
 )
 @flags.override(user_id=362089194)
 @flags.rate_limit(limit=180, key="rating", max_times=5)
@@ -222,15 +224,35 @@ async def add_reaction_rating_handler(
     reaction: types.MessageReactionUpdated,
     repo: RequestsRepo,
     bot: Bot,
+    rating: int | None = None,
 ):
     reaction_change = get_reaction_change(
         new_reaction=reaction.new_reaction, old_reaction=reaction.old_reaction
     )
-    rating_change = (
-        1
-        if reaction_change == "positive"
-        else -3 if reaction_change == "negative" else 0
-    )
+    if reaction_change == "positive":
+        if rating:
+            if rating > 300:
+                rating_change = 7
+            elif rating > 100:
+                rating_change = 3
+            elif rating > 50:
+                rating_change = 2
+            else:
+                rating_change = 1
+        else:
+            rating_change = 1
+
+    elif reaction_change == "negative" and rating:
+        if rating > 300:
+            rating_change = -10
+        elif rating > 100:
+            rating_change = -5
+        elif rating > 50:
+            rating_change = -3
+        else:
+            rating_change = 0
+    else:
+        rating_change = 0
 
     if not rating_change:
         return
