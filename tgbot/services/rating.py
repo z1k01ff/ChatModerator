@@ -46,7 +46,6 @@ def get_reaction_change(
     old_set = set([reaction.emoji for reaction in old_reaction])
     new_set = set([reaction.emoji for reaction in new_reaction])
 
-    logging.info(f"{old_set=}, {new_set=}")
     # Determine the difference
     added = new_set - old_set
 
@@ -119,7 +118,6 @@ async def reaction_rating_calculator(
     actor_rank = UserRank.from_rating(actor_rating)
 
     reaction_change = get_reaction_change(reaction.old_reaction, reaction.new_reaction)
-    logging.info(f"{reaction_change=}")
     rating_change = calculate_rating_change(actor_rank, helper_rank, reaction_change)
 
     return rating_change
