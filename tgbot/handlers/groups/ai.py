@@ -7,7 +7,7 @@ from aiogram.filters import Command, CommandObject, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hlink
 from anthropic import APIStatusError, AsyncAnthropic
-from pyrogram import Client
+from pyrogram import Client, errors
 from pyrogram.types import Message as PyrogramMessage
 
 from tgbot.filters.rating import RatingFilter
@@ -76,9 +76,13 @@ async def get_messages_history(
 
     messages: list[PyrogramMessage] = []
     if chained_replies:
-        previous_message = await client.get_messages(
-            chat_id=chat_id, reply_to_message_ids=start_message_id
-        )
+        try:
+            previous_message = await client.get_messages(
+                chat_id=chat_id, reply_to_message_ids=start_message_id
+            )
+        except errors.exceptions.bad_request_400.MessageIdsEmpty:
+            return ""
+
         if previous_message:
             messages.append(previous_message)
             if previous_message.reply_to_message:
