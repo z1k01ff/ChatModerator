@@ -2,34 +2,10 @@ import logging
 from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
-from aiogram.dispatcher.flags import get_flag
 from aiogram.types import Message, MessageReactionUpdated
 
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.services.rating import is_rating_cached
-
-
-class RatingCacheMessageMiddleware(BaseMiddleware):
-    async def __call__(
-        self,
-        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
-        m: Message,
-        data: Dict[str, Any],
-    ) -> Any:
-        ratings_cache = data["ratings_cache"]
-
-        rating_cache_flag = get_flag(data, "rating_cache")
-        if not rating_cache_flag:
-            return await handler(m, data)
-
-        user_id = m.from_user.id  # айди юзера, который поставил + или -
-
-        cached = is_rating_cached(m.chat.id, user_id, ratings_cache)
-        if cached:
-            await m.delete()
-            return
-
-        return await handler(m, data)
 
 
 class RatingCacheReactionMiddleware(BaseMiddleware):
@@ -40,14 +16,25 @@ class RatingCacheReactionMiddleware(BaseMiddleware):
         data: Dict[str, Any],
     ) -> Any:
         ratings_cache = data["ratings_cache"]
+        repo: RequestsRepo = data["repo"]
 
         user_id = reaction.user.id if reaction.user else reaction.actor_chat.id
-
-        cached = is_rating_cached(reaction.chat.id, user_id, ratings_cache)
+        helper_id = (
+            await repo.message_user.get_user_id_by_message_id(
+                reaction.chat.id, reaction.message_id
+            )
+            or reaction.chat.id
+        )
+        cached = is_rating_cached(
+            helper_id,
+            user_id,
+            ratings_cache,
+        )
         if cached:
             logging.info("Cached rating reaction. Ignoring.")
             return
 
+        data["helper_id"] = helper_id
         return await handler(reaction, data)
 
 

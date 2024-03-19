@@ -70,6 +70,7 @@ async def get_messages_history(
     num_messages: int | None = None,
     limit: int = 2048,
     chained_replies: bool = False,
+    with_bot: bool = True,
 ) -> str:
     if not num_messages and not chained_replies:
         return ""
@@ -118,7 +119,11 @@ async def get_messages_history(
             f"{(added_message.from_user.last_name or '') if added_message.from_user else ''}"
             f"</user>:<message>{added_message.text or added_message.caption}</message><message_url>{added_message.link}</message_url>"
             for added_message in messages
-            if added_message.text or added_message.caption
+            if (added_message.text or added_message.caption)
+            and (
+                with_bot
+                or (not with_bot and added_message.from_user.id != ASSISTANT_ID)
+            )
         ]
     )
     logging.info(f"Message history: {message_history[:limit]}")
@@ -126,7 +131,8 @@ async def get_messages_history(
 
 
 def get_system_message(
-    message: types.Message,
+    chat_title: str,
+    actor_name: str,
     reply_prompt: str | None,
     assistant_message: str | None,
     reply_person: str,
@@ -157,10 +163,9 @@ and if they are manipulating. If manipulation is detected - state it, and explai
 Speak Ukrainian by default.
 </your_personality>"""
     chat_context = f"""<chat_context>
-You are in {message.chat.title} named Telegram Group. 
-The current person's name you are talking to is '{message.from_user.full_name}' and he is a member of the group.
-Sometimes people make replies to other people's messages, and sometimes to yours.
-{reply_context}"""
+You are in {chat_title} named Telegram Group. 
+The current person's name you are talking to is '{actor_name}' and he is a member of the group.
+Sometimes people make replies to other people's messages, and sometimes to yours."""
     rating_system = """<rating_system>
 The chat has a rating system. People can rate messages with a reaction. The rating system is used to create a top helpers rating between the members of the group.
 The points are arbitrary, but in some future can be used to give some privileges to the top rated members.
@@ -181,9 +186,11 @@ Instead just try to compose the inappropriate message into a teaching session ab
 - Shorten the text as much as possible (1-2 sentences), answer as if you are a chat participant who does not have time for a long story, if you understand that you cannot write a short answer, or if I ask you to tell me more, just give me a link to Google with a request for my question: [Пошукай тут](https://www.google.com/search?q=your+optimized+question+query)
 """
     if long:
-        return f"{personality}{chat_context}{rating_system}{rules_general}{messages_history}"
+        return f"{personality}{chat_context}{reply_context}{rating_system}{rules_general}{messages_history}"
     else:
-        return f"{personality}{chat_context}{rules_short}{messages_history}"
+        return (
+            f"{personality}{chat_context}{reply_context}{rules_short}{messages_history}"
+        )
 
 
 async def get_notification(usage_cost: float) -> str:
@@ -201,12 +208,13 @@ async def summarize_chat_history(
     bot: Bot,
     anthropic_client: AsyncAnthropic,
     with_reply: bool = False,
+    with_bot: bool = True,
 ):
     sent_message = await message.answer(
         "⏳", reply_to_message_id=message.message_id if with_reply else None
     )
     messages_history = await get_messages_history(
-        client, message.message_id, message.chat.id, -200, 200_000
+        client, message.message_id, message.chat.id, -200, 200_000, with_bot=with_bot
     )
     if not messages_history:
         return await message.answer("Не знайдено повідомлень для аналізу.")
@@ -306,9 +314,16 @@ async def ask_ai(
     if message.quote:
         return
 
+    actor_name = message.from_user.full_name
     reply_prompt = await get_reply_prompt(message)
     reply_photo = await get_reply_photo(message)
     reply_person = await get_reply_person(message, assistant_message)
+    if not command.args:
+        prompt = reply_prompt
+        actor_name = reply_person
+        reply_prompt = ""
+        reply_person = ""
+
     num_messages, multiple_prompt = parse_multiple_command(command)
     messages_history = ""
 
@@ -328,7 +343,8 @@ async def ask_ai(
         )
     long_answer = command is not None
     system_message = get_system_message(
-        message,
+        message.chat.title,
+        actor_name,
         reply_prompt,
         assistant_message,
         reply_person,
@@ -440,4 +456,5 @@ async def history_worker(
             bot=bot,
             anthropic_client=anthropic_client,
             with_reply=True,
+            with_bot=False,
         )

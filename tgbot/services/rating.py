@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import logging
 
 from infrastructure.database.repo.requests import RequestsRepo
 from aiogram.types import (
@@ -12,6 +11,11 @@ from enum import Enum, auto
 RATING_CACHE_TTL = timedelta(minutes=3)
 POSITIVE_EMOJIS = {"👍", "❤", "🔥", "❤‍🔥", "😁", "🤣"}
 NEGATIVE_EMOJIS = {"👎", "🤡", "💩"}
+
+
+class InterationType(Enum):
+    POSITIVE = auto()
+    NEGATIVE = auto()
 
 
 class UserRank(Enum):
@@ -52,9 +56,9 @@ def get_reaction_change(
     # Check if the change is positive or negative
     for emoji in added:
         if emoji in POSITIVE_EMOJIS:
-            return "positive"
+            return InterationType.POSITIVE
         elif emoji in NEGATIVE_EMOJIS:
-            return "negative"
+            return InterationType.NEGATIVE
 
 
 def is_rating_cached(helper_id: int, user_id: int, ratings_cache: dict) -> bool:
@@ -86,26 +90,24 @@ async def change_rating(
     return current_rating, new_rating
 
 
-# Calculate the change in rating based on ranks and interaction type
 def calculate_rating_change(
-    actor_rank: UserRank, target_rank: UserRank, interaction_type: str | None = None
+    actor_rank: UserRank,
+    target_rank: UserRank,
+    interaction_type: InterationType | None = None,
 ) -> int:
     if not interaction_type:
         return 0
+    scale = 2
+    exponent = 2
 
-    impact_matrix = {
-        "positive": {"higher": 1, "equal": 3, "lower": 6},
-        "negative": {"higher": -1, "equal": -2, "lower": -5},
-    }
+    rank_diff = abs(actor_rank.value - target_rank.value)
+    scale_factor = ((actor_rank.value / 6) ** exponent) * rank_diff * scale
+    delta_rating = max(1, min(10, round(scale_factor)))
 
-    if actor_rank.value == target_rank.value:
-        rank_relation = "equal"
-    elif target_rank.value > actor_rank.value:
-        rank_relation = "higher"
-    else:
-        rank_relation = "lower"
+    if interaction_type == InterationType.NEGATIVE:
+        delta_rating *= -1
 
-    return impact_matrix[interaction_type][rank_relation]
+    return delta_rating
 
 
 async def reaction_rating_calculator(

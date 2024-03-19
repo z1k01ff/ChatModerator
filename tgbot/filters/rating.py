@@ -13,7 +13,7 @@ class RatingFilter(BaseFilter):
         if not user_rating:
             return False
 
-        if user_rating > self.rating:
+        if user_rating >= self.rating:
             return {"rating": user_rating}
         else:
             if not isinstance(obj, Message):

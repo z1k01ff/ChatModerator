@@ -21,8 +21,6 @@ from tgbot.middlewares.database import DatabaseMiddleware
 from tgbot.middlewares.policy_content import OpenAIModerationMiddleware
 from tgbot.middlewares.ratings_cache import (
     MessageUserMiddleware,
-    RatingCacheMessageMiddleware,
-    RatingCacheReactionMiddleware,
 )
 from tgbot.middlewares.throttling import ThrottlingMiddleware
 from tgbot.misc.default_commands import set_default_commands
@@ -63,8 +61,6 @@ def register_global_middlewares(
     dp.message.middleware(ThrottlingMiddleware())
     dp.message_reaction.middleware(ThrottlingMiddleware())
     dp.update.outer_middleware(DatabaseMiddleware(session_pool))
-    dp.message.middleware(RatingCacheMessageMiddleware())
-    dp.message_reaction.middleware(RatingCacheReactionMiddleware())
     dp.message.outer_middleware(MessageUserMiddleware())
 
 

@@ -9,6 +9,7 @@ from cachetools import TTLCache
 
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.filters.rating import RatingFilter
+from tgbot.middlewares.ratings_cache import RatingCacheReactionMiddleware
 from tgbot.services.rating import (
     NEGATIVE_EMOJIS,
     POSITIVE_EMOJIS,
@@ -19,34 +20,9 @@ from tgbot.services.rating import change_rating
 
 groups_rating_router = Router()
 groups_rating_router.message.filter(F.chat.type == ChatType.SUPERGROUP)
+groups_rating_router.message_reaction.middleware(RatingCacheReactionMiddleware())
 
 cache = TTLCache(maxsize=10, ttl=60 * 60 * 24 * 7)
-ratings = {
-    "+": 1,
-    "➕": 1,
-    "👍": 1,
-    "спасибо": 1,
-    "дякую": 1,
-    "спасибо большое": 2,
-    "дякую велике": 2,
-    "дуже дякую": 2,
-    "дякую дуже": 2,
-    "дякую величезне": 2,
-    "-": -1,
-    "➖": -1,
-    "👎": -1,
-    "пошел нахуй": -2,
-    "иди нахуй": -2,
-    "іді нахуй": -2,
-    "пішов нахуй": -2,
-}
-
-# add positive emojis and negative emojis to the rating dict = 1 and rating = -1
-for emoji in POSITIVE_EMOJIS:
-    ratings[emoji] = 1
-
-for emoji in NEGATIVE_EMOJIS:
-    ratings[emoji] = -2
 
 
 async def process_new_rating(
@@ -168,54 +144,17 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     await m.answer(text, disable_notification=True)
 
 
-# Make sure to update the implementation details if necessary
-@groups_rating_router.message(
-    F.text.lower().in_(ratings.keys()),
-    F.reply_to_message,
+@groups_rating_router.message_reaction(
     or_f(
-        F.reply_to_message.from_user.id == F.from_user.id,
-        F.bot.id == F.reply_to_message.from_user.id,
+        F.new_reaction[0].emoji.in_(POSITIVE_EMOJIS),
+        F.old_reaction[0].emoji.in_(POSITIVE_EMOJIS),
     ),
 )
-async def delete_rating_handler(m: types.Message):
-    await m.delete()
-
-
-@groups_rating_router.message(
-    F.text.lower().in_(ratings.keys()),
-    F.reply_to_message,
-    F.reply_to_message.from_user.id != F.from_user.id,
-)
-@flags.override(user_id=362089194)
-@flags.rate_limit(limit=180, key="rating", max_times=5)
-@flags.rating_cache
-async def add_rating_handler(m: types.Message, repo: RequestsRepo):
-    helper_id = m.reply_to_message.from_user.id  # айди хелпера
-    mention_reply = m.reply_to_message.from_user.mention_html(
-        m.reply_to_message.from_user.first_name
-    )
-    mention_from = m.from_user.mention_html(m.from_user.first_name)
-
-    if helper_id == 362089194 and m.text in ["-", "👎", "➖"]:
-        await m.answer_photo(
-            photo="https://memepedia.ru/wp-content/uploads/2019/02/uno-meme-1.jpg",
-            caption="Ви не можете це зробити. Ваш удар був спрямований проти вас",
-        )
-        helper_id = m.from_user.id
-        mention_reply = m.from_user.mention_html(m.from_user.first_name)
-
-    rating_change = ratings.get(m.text, 1)  # type: ignore
-    await process_new_rating(
-        rating_change, repo, helper_id, mention_from, mention_reply
-    )
-    await m.react([types.ReactionTypeEmoji(emoji="✍")], is_big=True)
-
-
 @groups_rating_router.message_reaction(
-    F.new_reaction[0].emoji.in_(POSITIVE_EMOJIS).as_("positive_rating"),
-)
-@groups_rating_router.message_reaction(
-    F.new_reaction[0].emoji.in_(NEGATIVE_EMOJIS).as_("negative_rating"),
+    or_f(
+        F.new_reaction[0].emoji.in_(NEGATIVE_EMOJIS),
+        F.old_reaction[0].emoji.in_(NEGATIVE_EMOJIS),
+    ),
     RatingFilter(rating=50),
 )
 @flags.override(user_id=362089194)
@@ -224,10 +163,8 @@ async def add_reaction_rating_handler(
     reaction: types.MessageReactionUpdated,
     repo: RequestsRepo,
     bot: Bot,
+    helper_id: int,
 ):
-    helper_id = await repo.message_user.get_user_id_by_message_id(
-        reaction.chat.id, reaction.message_id
-    )
     rating_change = await reaction_rating_calculator(
         reaction, repo, helper_id, reaction.user.id
     )
