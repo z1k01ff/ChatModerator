@@ -318,7 +318,7 @@ async def ask_ai(
     reply_prompt = await get_reply_prompt(message)
     reply_photo = await get_reply_photo(message)
     reply_person = await get_reply_person(message, assistant_message)
-    if not command.args:
+    if command and not command.args:
         prompt = reply_prompt
         actor_name = reply_person
         reply_prompt = ""
@@ -455,6 +455,5 @@ async def history_worker(
             client=client,
             bot=bot,
             anthropic_client=anthropic_client,
-            with_reply=True,
             with_bot=False,
         )

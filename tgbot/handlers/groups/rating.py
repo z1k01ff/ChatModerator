@@ -46,10 +46,14 @@ async def process_new_rating(
         )
     logging.info(text)
 
-    milestones = [50, 100, 300]
+    milestones = [50, 100, 300, 600, 1000]
     for milestone in milestones:
         if previous_rating < milestone <= new_rating:
-            if milestone == 300:
+            if milestone == 1000:
+                return new_rating, "👑 Король"
+            elif milestone == 600:
+                return new_rating, "🧙‍♂️ Чаклун"
+            elif milestone == 300:
                 return new_rating, "🦄 Гетьман"
             elif milestone == 100:
                 return new_rating, "🐘 Отаман"
