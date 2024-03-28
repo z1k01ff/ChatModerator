@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Dict, Union
@@ -48,9 +49,14 @@ class ThrottlingMiddleware(BaseMiddleware):
             if isinstance(event, Message):
                 left_time = limit - (now - self.users[key][0]).seconds
                 if not silent:
-                    await event.answer(
+                    notification = await event.answer(
                         f"Занадто часто! Повторіть спробу через {left_time} секунд"
                     )
+
+                    await asyncio.sleep(5)
+                    await notification.delete()
+                    if isinstance(event, Message):
+                        await event.delete()
             return  # Stop processing if throttled
 
         # Proceed with the next handler if not throttled

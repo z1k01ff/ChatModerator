@@ -22,21 +22,19 @@ ASSISTANT_ID = 827638584
 MULTIPLE_MESSAGES_REGEX = re.compile(r"(-?\d+)(?:\s+(.+))?")
 
 
-async def get_reply_prompt(message: types.Message) -> str | None:
+def extract_reply_prompt(message: types.Message) -> str | None:
     if reply := message.reply_to_message:
         return reply.text or reply.caption
     return None
 
 
-async def get_reply_photo(message: types.Message) -> types.PhotoSize | None:
+def extract_reply_photo(message: types.Message) -> types.PhotoSize | None:
     if message.reply_to_message and message.reply_to_message.photo:
         return message.reply_to_message.photo[-1]
     return None
 
 
-async def get_reply_person(
-    message: types.Message, assistant_message: str | None
-) -> str:
+def extract_reply_person(message: types.Message, assistant_message: str | None) -> str:
     if assistant_message:
         return "Your"
     if reply := message.reply_to_message:
@@ -138,6 +136,8 @@ def get_system_message(
     reply_person: str,
     messages_history: str | None = None,
     long: bool = True,
+    content_type: str = "text",
+    reply_content_type: str | None = None,
 ) -> str:
     reply_context = ""
 
@@ -146,6 +146,7 @@ def get_system_message(
 <reply_context>
 <reply_to_person>{reply_person}</reply_to_person>
 <reply_text>{reply_prompt if reply_prompt else assistant_message if assistant_message else ''}</reply_text>
+There is {reply_content_type} in replied message.
 </reply_context>
 """
     messages_history = (
@@ -161,11 +162,14 @@ DO NOT MENTION ANYTHING ABOUT THE COURSE, JUST KNOW THAT FOR THE CONTEXT.
 You like philosophy and you help a lot in conversations, debating people opinions with scientific approach. You teach people about their fallacies in their arguments, you teach them logic, 
 and if they are manipulating. If manipulation is detected - state it, and explain why it's manipulation.
 Speak Ukrainian by default.
+You're not able to process videos, GIFs, or audio messages, only text and images.
 </your_personality>"""
     chat_context = f"""<chat_context>
 You are in {chat_title} named Telegram Group. 
 The current person's name you are talking to is '{actor_name}' and he is a member of the group.
-Sometimes people make replies to other people's messages, and sometimes to yours."""
+Sometimes people make replies to other people's messages, and sometimes to yours.
+There is a {content_type} in the message.
+</chat_context>"""
     rating_system = """<rating_system>
 The chat has a rating system. People can rate messages with a reaction. The rating system is used to create a top helpers rating between the members of the group.
 The points are arbitrary, but in some future can be used to give some privileges to the top rated members.
@@ -234,6 +238,7 @@ Make sure to close all the 'a' tags properly.
 - List not more than 30 topics.
 - The topic descriptions should be distinct and descriptive.
 - The topic should contain at least 3 messages and be not verbatim text of the message.
+- Write every topic with an emoji that describes the topic.
 </important_rule>
 <example_input>
 <time>2024-03-15 10:05</time><user>AlexSmith</user>:<message>Hey, does anyone know how we can request the history of this chat? I need it for our monthly review.</message><message_url>https://t.me/bot_devs_novice/914528</message_url>
@@ -249,12 +254,12 @@ Make sure to close all the 'a' tags properly.
 <example_format>
 Нижче наведено вичерпний перелік обговорюваних у цьому чаті тем:
 
-• <a href='https://t.me/bot_devs_novice/914528'>Запит на історію чату</a>
-• <a href='https://t.me/bot_devs_novice/914531'>Втрата підписників чат-ботом OpenAI через певну функцію</a>
-• <a href='https://t.me/bot_devs_novice/914534'>Голосування за DFS та винагороди за участь</a>
+• <a href='https://t.me/bot_devs_novice/914528'>📔 Запит на історію чату</a>
+• <a href='https://t.me/bot_devs_novice/914531'>😢 Втрата підписників чат-ботом OpenAI через певну функцію</a>
+• <a href='https://t.me/bot_devs_novice/914534'>🏆 Голосування за DFS та винагороди за участь</a>
 ...
 
-Найранішим повідомленням у цьому чаті є таке, що датується 2024-03-15 08:13.
+Наперше повідомлення датується 2024-03-15 08:13.
 </example_format>
 """,
         max_tokens=2000,
@@ -315,10 +320,10 @@ async def ask_ai(
         return
 
     actor_name = message.from_user.full_name
-    reply_prompt = await get_reply_prompt(message)
-    reply_photo = await get_reply_photo(message)
-    reply_person = await get_reply_person(message, assistant_message)
-    if command and not command.args:
+    reply_prompt = extract_reply_prompt(message)
+    reply_photo = extract_reply_photo(message)
+    reply_person = extract_reply_person(message, assistant_message)
+    if command and command.args is None:
         prompt = reply_prompt
         actor_name = reply_person
         reply_prompt = ""
@@ -342,6 +347,7 @@ async def ask_ai(
             chained_replies=True,
         )
     long_answer = command is not None
+
     system_message = get_system_message(
         message.chat.title,
         actor_name,
@@ -350,7 +356,13 @@ async def ask_ai(
         reply_person,
         messages_history,
         long=long_answer,
+        content_type=message.content_type,
+        reply_content_type=(
+            message.reply_to_message.content_type if message.reply_to_message else None
+        ),
     )
+    logging.info(f"System message: {system_message}")
+
     if not prompt:
         if command and command.args:
             prompt = command.args

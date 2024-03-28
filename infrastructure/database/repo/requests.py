@@ -65,9 +65,11 @@ class RatingUsersRepo:
             update(RatingUsers)
             .where(RatingUsers.user_id == user_id)
             .values(rating=RatingUsers.rating + increment)
+            .returning(RatingUsers.rating)
         )
-        await self.session.execute(stmt)
+        new_rating = await self.session.execute(stmt)
         await self.session.commit()
+        return new_rating.scalar()
 
     async def get_rating_by_user_id(self, user_id: int) -> Optional[int]:
         stmt = select(RatingUsers.rating).where(RatingUsers.user_id == user_id)
