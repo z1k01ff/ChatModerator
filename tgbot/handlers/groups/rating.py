@@ -61,13 +61,13 @@ async def process_new_rating(
                 return new_rating, "🐥 Козак"
 
 
-@groups_rating_router.message(Command("top_helpers"))
+@groups_rating_router.message(Command("top"))
 @flags.override(user_id=362089194)
-@flags.rate_limit(limit=30, key="top_helpers", chat=True)
-async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
+@flags.rate_limit(limit=30, key="top", chat=True)
+async def get_top(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
     history_key = StorageKey(bot_id=bot.id, user_id=m.chat.id, chat_id=m.chat.id)
     state_data = await state.storage.get_data(key=history_key)
-    previous_helpers = state_data.get("top_helpers", {})
+    previous_helpers = state_data.get("top", {})
 
     current_helpers = await repo.rating_users.get_top_by_rating(50)
     current_helpers_dict = {user_id: rating for user_id, rating in current_helpers}
@@ -104,9 +104,7 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
         elif len(pig_herder) < 10:
             pig_herder.append(helper_entry)
 
-    await state.storage.update_data(
-        key=history_key, data={"top_helpers": current_helpers_dict}
-    )
+    await state.storage.update_data(key=history_key, data={"top": current_helpers_dict})
 
     def format_league(league, league_name, emoji):
         if not league:
@@ -210,3 +208,62 @@ async def add_reaction_rating_handler(
 async def topup_user(message: types.Message, target_id: int, repo: RequestsRepo):
     await repo.rating_users.increment_rating_by_user_id(target_id, 100)
     await message.answer("Рейтинг поповнено на 100")
+
+
+@groups_rating_router.message(Command("rating"))
+async def get_user_rating(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
+    target_id = (
+        m.reply_to_message.from_user.id if m.reply_to_message else m.from_user.id
+    )
+
+    current_rating = await repo.rating_users.get_rating_by_user_id(target_id)
+    if current_rating is None:
+        await m.answer("Рейтинг користувача не знайдено.")
+        return
+
+    # Assume we have a function to get the previous rating and update it
+    previous_rating, _ = await get_and_update_previous_rating(
+        bot, state, target_id, current_rating
+    )
+
+    # Calculate rating change
+    rating_change = current_rating - previous_rating
+
+    # Determine the user's title
+    title = determine_user_title(current_rating)
+
+    change_text = (
+        f" (зміна: {'+' if rating_change >= 0 else ''}{rating_change})"
+        if rating_change != 0
+        else ""
+    )
+
+    await m.answer(f"Рейтинг: {current_rating}{change_text}\nТи: {title}")
+
+
+def determine_user_title(rating):
+    if rating >= 1000:
+        return "👑 Король"
+    elif rating >= 600:
+        return "🧙‍♂️ Чаклун"
+    elif rating >= 300:
+        return "🦄 Гетьман"
+    elif rating >= 100:
+        return "🐘 Отаман"
+    elif rating >= 50:
+        return "🐥 Козак"
+    else:
+        return "👩‍🌾 Свинопас"
+
+
+async def get_and_update_previous_rating(
+    bot: Bot, state: FSMContext, user_id: int, current_rating: int
+):
+    history_key = StorageKey(bot_id=bot.id, user_id=user_id, chat_id=user_id)
+    state_data = await state.storage.get_data(key=history_key)
+    previous_rating = state_data.get("previous_rating", current_rating)
+    # Update the previous rating to the current one for next time
+    await state.storage.update_data(
+        key=history_key, data={"previous_rating": current_rating}
+    )
+    return previous_rating, current_rating - previous_rating
