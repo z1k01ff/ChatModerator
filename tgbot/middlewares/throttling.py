@@ -84,7 +84,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         chat_marker = data.get("chat")
         silent = rate_limit.get("silent", False)
 
-        if chat_marker:
+        if chat_marker is not None:
             key = f"{key_prefix}:{event.chat.id}"
         else:
             key = f"{key_prefix}:{user_id}"

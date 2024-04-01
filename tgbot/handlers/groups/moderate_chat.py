@@ -479,7 +479,6 @@ async def media_true_handler(message: types.Message, bot: Bot):
         # Если бот не может забрать права пользователя (администратора),
         # возникает ошибка BadRequest которую мы обрабатываем
     except Exception:
-
         # Отправляем сообщение
         await message.answer(
             f"Пользователь {member_mentioned} "
@@ -550,6 +549,11 @@ async def promote_user(message: types.Message, bot: Bot):
 @groups_moderate_router.message(
     Command("title", prefix="/!", magic=F.args.len() > 0),
     F.reply_to_message.from_user.as_("member"),
+    HasPermissionsFilter(can_promote_members=True),
+)
+@groups_moderate_router.message(
+    Command("title", prefix="/!", magic=F.args.len() > 0),
+    F.reply_to_message.from_user.as_("member"),
     RatingFilter(rating=300),
 )
 @groups_moderate_router.message(
@@ -564,17 +568,13 @@ async def promote_user(message: types.Message, bot: Bot):
     F.from_user.as_("member_self"),
     HasPermissionsFilter(can_promote_members=True),
 )
-@groups_moderate_router.message(
-    Command("title", prefix="/!", magic=F.args.len() > 0),
-    F.reply_to_message.from_user.as_("member"),
-    HasPermissionsFilter(can_promote_members=True),
-)
 async def promote_with_title(
     message: types.Message,
     bot: Bot,
     repo: RequestsRepo,
     member: types.User | None = None,
     member_self: types.User | None = None,
+    rating: int | None = None,
 ):
     if member_self:
         member = member_self
@@ -582,10 +582,22 @@ async def promote_with_title(
 
     elif member:
         admin = message.from_user
-        target_rating = await repo.rating_users.get_rating_by_user_id(member.id)
-        if target_rating > 100:
+        target_rating = await repo.rating_users.get_rating_by_user_id(member.id) or 0
+
+        if rating:
+            if rating > 1000:
+                LIMIT_TARGET_RATING = 600
+            elif rating > 300:
+                LIMIT_TARGET_RATING = 100
+
+            else:
+                raise ValueError("Неправильний рейтинг для цієї команди")
+        else:
+            LIMIT_TARGET_RATING = 100
+
+        if target_rating > LIMIT_TARGET_RATING:
             return await message.answer(
-                "Користувач має рейтинг більше 100, і має імунітет від цієї команди"
+                f"Користувач має рейтинг більше {LIMIT_TARGET_RATING}, і має імунітет від цієї команди"
             )
 
     else:
@@ -598,9 +610,10 @@ async def promote_with_title(
     member_username = member.username
     member_mentioned = member.mention_html()
 
-    command_parse = re.compile(r"(!title|/title)( [\w+\D]+)?")
+    command_parse = re.compile(r"(!title|/title)(@[^\s]+)?( [\w+\D]+)?")
     parsed = command_parse.match(message.text)
-    custom_title = parsed.group(2)
+    logging.info(parsed.groups())
+    custom_title = parsed.group(3)
 
     try:
         chat_member = await message.chat.get_member(member_id)
