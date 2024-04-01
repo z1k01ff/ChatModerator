@@ -150,7 +150,7 @@ async def get_top_helpers(m: types.Message, repo: RequestsRepo, bot, state: FSMC
 - 3X BAR коефіцієнт виграшу 7.
 - 🍇🍇🍇 коефіцієнт виграшу 15
 - 🍋🍋🍋 коефіцієнт виграшу 20
-🔥ДЖЕКПОТ🔥 коефіцієнт виграшу 30
+🔥ДЖЕКПОТ🔥 коефіцієнт виграшу 50
 """
     await m.answer(text, disable_notification=True)
 

@@ -10,6 +10,8 @@ from tgbot.filters.rating import RatingFilter
 
 groups_casino_router = Router()
 
+HOURS = 60 * 60
+
 
 # Core logic for determining the win or loss outcome
 async def process_dice_roll(
@@ -27,12 +29,12 @@ async def process_dice_roll(
         },
         43: {
             "values": ("lemon", "lemon", "lemon"),
-            "coefficient": 20,
+            "coefficient": 25,
             "prize": "🍋🍋🍋",
         },
         64: {
             "values": ("seven", "seven", "seven"),
-            "coefficient": 30,
+            "coefficient": 50,
             "prize": "🔥ДЖЕКПОТ🔥",
         },
     }
@@ -40,14 +42,14 @@ async def process_dice_roll(
     dice_value = (
         message.dice.value if message.dice else 0
     )  # Fallback to 0 if no dice value
+    await message.answer(
+        f"{user.full_name} витратив {rating_bet} рейтингу на казино. 🎰"
+    )
+
     if dice_value not in slots:
         await repo.rating_users.increment_rating_by_user_id(user.id, -rating_bet)
         await asyncio.sleep(6)
-        notification_message = await message.answer(
-            f"Користувач витратив {rating_bet} рейтинг, але нічого не виграв"
-        )
         await message.delete()
-        await notification_message.delete()
 
         return  # Exit if not a recognized dice value and not from a dice roll
 
@@ -73,7 +75,7 @@ async def process_dice_roll(
 
 # Handler for dice rolls with the slot machine emoji
 @groups_casino_router.message(F.dice.emoji == "🎰", RatingFilter(50))
-@flags.rate_limit(limit=60 * 60 * 6, key="casino", max_times=3)
+@flags.rate_limit(limit=2 * HOURS, key="casino", max_times=3)
 async def win_or_loss(message: types.Message, repo: RequestsRepo):
     await process_dice_roll(message, user=message.from_user, rating_bet=1, repo=repo)
 
@@ -83,7 +85,7 @@ async def win_or_loss(message: types.Message, repo: RequestsRepo):
     Command("casino", magic=F.args.regexp(r"(\d+)")), RatingFilter(rating=50)
 )
 @groups_casino_router.message(Command("casino", magic=~F.args), RatingFilter(rating=50))
-@flags.rate_limit(limit=60 * 60 * 6, key="casino", max_times=3)
+@flags.rate_limit(limit=2 * HOURS, key="casino", max_times=3)
 async def roll_dice_command(
     message: types.Message,
     bot: Bot,

@@ -3,15 +3,58 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Dict, Union
 
-from aiogram import BaseMiddleware
+from aiogram import BaseMiddleware, Bot
 from aiogram.dispatcher.flags import get_flag
-from aiogram.types import Message, MessageReactionUpdated
+from aiogram.types import Message, MessageReactionUpdated, Chat
+
+from tgbot.misc.time_utils import format_time
+
+from aiogram.fsm.storage.base import StorageKey
+from aiogram.fsm.storage.redis import RedisStorage
+
+THROTTLING_STORAGE_KEY = "throttling"
 
 
 class ThrottlingMiddleware(BaseMiddleware):
     def __init__(self) -> None:
         super().__init__()
-        self.users = {}
+        self.users: dict
+        self.storage: RedisStorage
+
+    async def get_users_from_storage(self, data: dict):
+        self.storage = data.get("state").storage
+        bot: Bot = data.get("bot")
+        event_chat: Chat = data.get("event_chat")
+        chat_data: dict = await self.storage.get_data(
+            StorageKey(
+                bot_id=bot.id,
+                chat_id=event_chat.id,
+                user_id=event_chat.id,
+            )
+        )
+
+        throttling_data = chat_data.get(THROTTLING_STORAGE_KEY, {})
+        self.users = {
+            key: (datetime.fromisoformat(time_str), count)
+            for key, (time_str, count) in throttling_data.items()
+        }
+
+    async def set_users_to_storage(self, data: dict):
+        bot: Bot = data.get("bot")
+        event_chat: Chat = data.get("event_chat")
+        throttling_data = {
+            key: (time_obj.isoformat(), count)
+            for key, (time_obj, count) in self.users.items()
+        }
+
+        await self.storage.update_data(
+            StorageKey(
+                bot_id=bot.id,
+                chat_id=event_chat.id,
+                user_id=event_chat.id,
+            ),
+            {THROTTLING_STORAGE_KEY: throttling_data},
+        )
 
     async def __call__(
         self,
@@ -37,20 +80,23 @@ class ThrottlingMiddleware(BaseMiddleware):
 
         key_prefix = rate_limit.get("key", "antiflood")
         limit = rate_limit.get("limit", 30)
-        key = f"{key_prefix}:{user_id}"
         max_times = rate_limit.get("max_times", 1)
         chat_marker = data.get("chat")
         silent = rate_limit.get("silent", False)
+
         if chat_marker:
             key = f"{key_prefix}:{event.chat.id}"
+        else:
+            key = f"{key_prefix}:{user_id}"
 
-        if self._should_throttle(key, now, limit, max_times):
+        await self.get_users_from_storage(data)
+        if left_time := self._should_throttle(key, now, limit, max_times):
+            await self.set_users_to_storage(data)
             logging.info(f"Throttling {user_id} for {key_prefix}")
             if isinstance(event, Message):
-                left_time = limit - (now - self.users[key][0]).seconds
                 if not silent:
                     notification = await event.answer(
-                        f"Занадто часто! Повторіть спробу через {left_time} секунд"
+                        f"Занадто часто! Повторіть спробу через {format_time(left_time)}."
                     )
 
                     await asyncio.sleep(5)
@@ -59,6 +105,7 @@ class ThrottlingMiddleware(BaseMiddleware):
                         await event.delete()
             return  # Stop processing if throttled
 
+        await self.set_users_to_storage(data)
         # Proceed with the next handler if not throttled
         return await handler(event, data)
 
@@ -80,7 +127,7 @@ class ThrottlingMiddleware(BaseMiddleware):
                     return False
                 else:
                     # Throttle if max_times is reached
-                    return True
+                    return limit - (now - self.users[key][0]).seconds
         # Not previously throttled or time limit passed, reset or initialize throttle data
         self.users[key] = (now, 1)  # Start counting throttling attempts
         return False

@@ -391,7 +391,8 @@ async def ask_ai(
     if reply_photo:
         logging.info("Adding reply message with photo")
         photo_bytes_io = await bot.download(
-            reply_photo, destination=BytesIO()  # type: ignore
+            reply_photo,
+            destination=BytesIO(),  # type: ignore
         )
         ai_media = AIMedia(photo_bytes_io)
         ai_conversation.add_user_message(text="Image", ai_media=ai_media)
@@ -451,13 +452,13 @@ async def history_worker(
 ):
     state_data = await state.get_data()
     last_message_id = state_data.get("last_message_id", None)
-    logging.info(
-        f"Last message id: {last_message_id}, left: {200 - (message.message_id - last_message_id)} messages"
-    )
     if not last_message_id:
         await state.update_data({"last_message_id": message.message_id})
         return
 
+    logging.info(
+        f"Last message id: {last_message_id}, left: {200 - (message.message_id - last_message_id)} messages"
+    )
     if message.message_id >= last_message_id + 200:
         await state.update_data({"last_message_id": message.message_id})
         # print summarised history
