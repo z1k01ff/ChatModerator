@@ -81,7 +81,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         key_prefix = rate_limit.get("key", "antiflood")
         limit = rate_limit.get("limit", 30)
         max_times = rate_limit.get("max_times", 1)
-        chat_marker = data.get("chat")
+        chat_marker = rate_limit.get("chat")
         silent = rate_limit.get("silent", False)
 
         if chat_marker is not None:

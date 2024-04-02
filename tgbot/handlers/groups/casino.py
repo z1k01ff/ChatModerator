@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 from aiogram import Bot, F, Router, types, flags
 from aiogram.filters import Command, CommandObject
@@ -93,9 +92,8 @@ async def roll_dice_command(
     command: CommandObject,
 ):
     sent_message = await bot.send_dice(message.chat.id, emoji="🎰")
-
-    logging.info(f"Command args: {command.args=}")
-    rating_bet = abs(min(int(command.args) if command.args else 1, 20))
+    await message.delete()
+    rating_bet = abs(min(int(command.args) if command.args else 1, 13))
     await process_dice_roll(
         message=sent_message, user=message.from_user, rating_bet=rating_bet, repo=repo
     )
