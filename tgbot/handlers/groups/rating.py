@@ -9,6 +9,7 @@ from cachetools import TTLCache
 
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.filters.rating import RatingFilter
+from tgbot.handlers.groups.casino import HOURS
 from tgbot.middlewares.ratings_cache import RatingCacheReactionMiddleware
 from tgbot.services.rating import (
     NEGATIVE_EMOJIS,
@@ -63,7 +64,7 @@ async def process_new_rating(
 
 # @flags.override(user_id=362089194)
 @groups_rating_router.message(Command("top"))
-@flags.rate_limit(limit=3600, key="top", chat=True)
+@flags.rate_limit(limit=0.5 * HOURS, key="top", chat=True)
 async def get_top(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
     history_key = StorageKey(bot_id=bot.id, user_id=m.chat.id, chat_id=m.chat.id)
     state_data = await state.storage.get_data(key=history_key)
@@ -213,13 +214,12 @@ async def topup_user(message: types.Message, target_id: int, repo: RequestsRepo)
 
 @groups_rating_router.message(Command("rating"))
 async def get_user_rating(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
-    target_id = (
-        m.reply_to_message.from_user.id if m.reply_to_message else m.from_user.id
-    )
+    target = m.reply_to_message.from_user if m.reply_to_message else m.from_user
+    target_id = target.id
 
     current_rating = await repo.rating_users.get_rating_by_user_id(target_id)
     if current_rating is None:
-        await m.answer("Рейтинг користувача не знайдено.")
+        await m.reply("Рейтинг користувача не знайдено.")
         return
 
     # Assume we have a function to get the previous rating and update it
@@ -234,12 +234,22 @@ async def get_user_rating(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     title = determine_user_title(current_rating)
 
     change_text = (
-        f" (зміна: {'+' if rating_change >= 0 else ''}{rating_change})"
+        f" (⬆️ {rating_change})"
+        if rating_change > 0
+        else f" (🔻 {abs(rating_change)})"
         if rating_change != 0
         else ""
     )
 
-    await m.answer(f"Рейтинг: {current_rating}{change_text}\nТи: {title}")
+    await m.reply(
+        f"Рейтинг: {current_rating}{change_text}\n{target.full_name}: {title}"
+    )
+
+
+@groups_rating_router.message(Command("wipe"), F.from_user.id == 362089194)
+async def wipe_user_rating(m: types.Message, repo: RequestsRepo):
+    await repo.rating_users.wipe_ratings()
+    await m.reply("Рейтинги користувачів було очищено.")
 
 
 def determine_user_title(rating):

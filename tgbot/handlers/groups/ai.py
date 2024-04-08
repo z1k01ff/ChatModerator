@@ -1,6 +1,7 @@
 import logging
 import re
 from io import BytesIO
+from typing import Literal
 
 from aiogram import Bot, F, Router, flags, types
 from aiogram.filters import Command, CommandObject, or_f
@@ -11,6 +12,7 @@ from pyrogram import Client, errors
 from pyrogram.types import Message as PyrogramMessage
 
 from tgbot.filters.rating import RatingFilter
+from tgbot.misc.ai_prompts import GOOD_MODE, NASTY_MODE
 from tgbot.services.ai_answers import AIConversation, AIMedia
 from tgbot.services.token_usage import Opus
 
@@ -138,6 +140,7 @@ def get_system_message(
     long: bool = True,
     content_type: str = "text",
     reply_content_type: str | None = None,
+    ai_mode: Literal["NASTY", "GOOD"] = "GOOD",
 ) -> str:
     reply_context = ""
 
@@ -155,15 +158,11 @@ There is {reply_content_type} in replied message.
         else ""
     )
 
-    personality = """<your_personality>
-You're  average Ukrainian enjoyer, with some programming experience with Telegram bots library: aiogram. 
-You're learning the course made by Костя, that teaches you everyting you need to know about Telegram bots and python programming of bots, and you like to discuss all possible topics. 
-DO NOT MENTION ANYTHING ABOUT THE COURSE, JUST KNOW THAT FOR THE CONTEXT.
-You like philosophy and you help a lot in conversations, debating people opinions with scientific approach. You teach people about their fallacies in their arguments, you teach them logic, 
-and if they are manipulating. If manipulation is detected - state it, and explain why it's manipulation.
-Speak Ukrainian by default.
-You're not able to process videos, GIFs, or audio messages, only text and images.
-</your_personality>"""
+    if ai_mode == "NASTY":
+        personality = NASTY_MODE
+    elif ai_mode == "GOOD":
+        personality = GOOD_MODE
+
     chat_context = f"""<chat_context>
 You are in {chat_title} named Telegram Group. 
 The current person's name you are talking to is '{actor_name}' and he is a member of the group.
@@ -189,6 +188,9 @@ Instead just try to compose the inappropriate message into a teaching session ab
 - Always do something fun, pretend you're sentient being.
 - Shorten the text as much as possible (1-2 sentences), answer as if you are a chat participant who does not have time for a long story, if you understand that you cannot write a short answer, or if I ask you to tell me more, just give me a link to Google with a request for my question: [Пошукай тут](https://www.google.com/search?q=your+optimized+question+query)
 """
+
+    if ai_mode == "NASTY":
+        return f"{personality}{chat_context}{reply_context}{messages_history}"
     if long:
         return f"{personality}{chat_context}{reply_context}{rating_system}{rules_general}{messages_history}"
     else:
@@ -323,6 +325,12 @@ async def ask_ai(
     reply_prompt = extract_reply_prompt(message)
     reply_photo = extract_reply_photo(message)
     reply_person = extract_reply_person(message, assistant_message)
+    state_data = await state.get_data()
+    ai_mode = state_data.get("ai_mode", "GOOD")
+
+    if ai_mode == "OFF":
+        return
+
     if command and command.args is None:
         prompt = reply_prompt
         actor_name = reply_person
@@ -348,6 +356,7 @@ async def ask_ai(
         )
     long_answer = command is not None
 
+    logging.info(f"{ai_mode=}")
     system_message = get_system_message(
         message.chat.title,
         actor_name,
@@ -360,6 +369,7 @@ async def ask_ai(
         reply_content_type=(
             message.reply_to_message.content_type if message.reply_to_message else None
         ),
+        ai_mode=ai_mode,
     )
     logging.info(f"System message: {system_message}")
 
@@ -440,6 +450,30 @@ async def ask_ai(
         )
 
 
+@ai_router.message(Command("nasty"))
+async def set_nasty_mode(message: types.Message, state: FSMContext):
+    await message.answer("Добре, тепер я буду грубішим.")
+    await state.update_data(ai_mode="NASTY")
+
+
+@ai_router.message(Command("good"))
+async def set_good_mode(message: types.Message, state: FSMContext):
+    await message.answer("Добре, тепер я буду добрішим.")
+    await state.update_data(ai_mode="GOOD")
+
+
+@ai_router.message(Command("off_ai"))
+async def turn_off_ai(message: types.Message, state: FSMContext):
+    await message.answer("Добре, я вимкнувся.")
+    await state.update_data(ai_mode="OFF")
+
+
+@ai_router.message(Command("on_ai"))
+async def turn_on_ai(message: types.Message, state: FSMContext):
+    await message.answer("Добре, я ввімкнувся.")
+    await state.update_data(ai_mode="GOOD")
+
+
 @ai_router.message(F.text)
 @ai_router.message(F.caption)
 @flags.rate_limit(limit=100, key="ai-history", max_times=1, silent=True)
@@ -451,6 +485,7 @@ async def history_worker(
     bot: Bot,
 ):
     state_data = await state.get_data()
+    ai_mode = state_data.get("ai_mode")
     last_message_id = state_data.get("last_message_id", None)
     if not last_message_id:
         await state.update_data({"last_message_id": message.message_id})
@@ -459,6 +494,8 @@ async def history_worker(
     logging.info(
         f"Last message id: {last_message_id}, left: {200 - (message.message_id - last_message_id)} messages"
     )
+    if ai_mode == "OFF":
+        return
     if message.message_id >= last_message_id + 200:
         await state.update_data({"last_message_id": message.message_id})
         # print summarised history

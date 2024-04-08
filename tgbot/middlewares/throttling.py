@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import suppress
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Dict, Union
@@ -11,6 +12,8 @@ from tgbot.misc.time_utils import format_time
 
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.redis import RedisStorage
+
+from tgbot.services.broadcaster import send_message
 
 THROTTLING_STORAGE_KEY = "throttling"
 
@@ -95,14 +98,20 @@ class ThrottlingMiddleware(BaseMiddleware):
             logging.info(f"Throttling {user_id} for {key_prefix}")
             if isinstance(event, Message):
                 if not silent:
-                    notification = await event.answer(
-                        f"Занадто часто! Повторіть спробу через {format_time(left_time)}."
+                    # notification = await event.answer(
+                    # f"Занадто часто! Повторіть спробу через {format_time(left_time)}."
+                    # )
+                    notification = await send_message(
+                        bot=event.bot,
+                        user_id=user_id,
+                        text=f"Занадто часто! Повторіть спробу через {format_time(left_time)}.",
                     )
 
                     await asyncio.sleep(5)
                     await notification.delete()
                     if isinstance(event, Message):
-                        await event.delete()
+                        with suppress(Exception):
+                            await event.delete()
             return  # Stop processing if throttled
 
         await self.set_users_to_storage(data)

@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import suppress
 
 from aiogram import Bot, F, Router, types, flags
 from aiogram.filters import Command, CommandObject
@@ -6,10 +7,12 @@ from aiogram.types import User
 
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.filters.rating import RatingFilter
+from tgbot.services.broadcaster import send_message, send_telegram_action
 
 groups_casino_router = Router()
 
 HOURS = 60 * 60
+MAX_CASINO_BET = 7
 
 
 # Core logic for determining the win or loss outcome
@@ -41,9 +44,11 @@ async def process_dice_roll(
     dice_value = (
         message.dice.value if message.dice else 0
     )  # Fallback to 0 if no dice value
-    await message.answer(
-        f"{user.full_name} витратив {rating_bet} рейтингу на казино. 🎰"
-    )
+    # await send_message(
+    # bot=message.bot,
+    # user_id=message.chat.id,
+    # text=f"{user.full_name} витратив {rating_bet} рейтингу на казино. 🎰",
+    # )
 
     if dice_value not in slots:
         await repo.rating_users.increment_rating_by_user_id(user.id, -rating_bet)
@@ -69,14 +74,8 @@ async def process_dice_roll(
     )
 
     success_message = f"Користувач {user.full_name} вибив {prize} і отримав {added_rating} рейтингу, тепер у нього {new_rating} рейтингу.\nВітаємо!"
-    await message.answer(success_message)
-
-
-# Handler for dice rolls with the slot machine emoji
-@groups_casino_router.message(F.dice.emoji == "🎰", RatingFilter(50))
-@flags.rate_limit(limit=2 * HOURS, key="casino", max_times=3)
-async def win_or_loss(message: types.Message, repo: RequestsRepo):
-    await process_dice_roll(message, user=message.from_user, rating_bet=1, repo=repo)
+    # await message.answer(success_message)
+    await send_message(bot=message.bot, user_id=message.chat.id, text=success_message)
 
 
 # Command handler for rolling the dice
@@ -84,16 +83,31 @@ async def win_or_loss(message: types.Message, repo: RequestsRepo):
     Command("casino", magic=F.args.regexp(r"(\d+)")), RatingFilter(rating=50)
 )
 @groups_casino_router.message(Command("casino", magic=~F.args), RatingFilter(rating=50))
-@flags.rate_limit(limit=2 * HOURS, key="casino", max_times=3)
+@flags.rate_limit(limit=1, key="casino", max_times=3)
 async def roll_dice_command(
     message: types.Message,
     bot: Bot,
     repo: RequestsRepo,
     command: CommandObject,
 ):
-    sent_message = await bot.send_dice(message.chat.id, emoji="🎰")
-    await message.delete()
-    rating_bet = abs(min(int(command.args) if command.args else 1, 13))
+    # sent_message = await bot.send_dice(message.chat.id, emoji="🎰")
+    sent_message = await send_telegram_action(
+        bot.send_dice,
+        chat_id=message.chat.id,
+        emoji="🎰",
+        reply_to_message_id=message.message_id,
+    )
+    if not sent_message:
+        return
+
+    try:
+        rating_bet = abs(min(int(command.args) if command.args else 1, MAX_CASINO_BET))
+    except ValueError:
+        rating_bet = 1
+
     await process_dice_roll(
         message=sent_message, user=message.from_user, rating_bet=rating_bet, repo=repo
     )
+
+    with suppress(Exception):
+        await message.delete()

@@ -6,6 +6,38 @@ from aiogram import Bot
 from aiogram import exceptions
 from aiogram.types import InlineKeyboardMarkup
 
+from typing import Any, Callable
+
+
+async def send_telegram_action(bot_method: Callable[..., Any], *args, **kwargs) -> bool:
+    """
+    Universal Telegram action sender.
+
+    :param bot_method: Telegram Bot method to be called (e.g., bot.send_message).
+    :param args: Positional arguments to pass to the bot method.
+    :param kwargs: Keyword arguments to pass to the bot method.
+    :return: success.
+    """
+    try:
+        result = await bot_method(*args, **kwargs)
+        logging.info(f"Target [ID:{kwargs.get('chat_id', 'unknown')}]: success")
+        return result
+    except exceptions.TelegramBadRequest:
+        logging.error("Telegram server says - Bad Request: chat not found")
+    except exceptions.TelegramForbiddenError:
+        logging.error(
+            f"Target [ID:{kwargs.get('chat_id', 'unknown')}]: got TelegramForbiddenError"
+        )
+    except exceptions.TelegramRetryAfter as e:
+        logging.error(
+            f"Target [ID:{kwargs.get('chat_id', 'unknown')}]: Flood limit is exceeded. Sleep {e.retry_after} seconds."
+        )
+        await asyncio.sleep(e.retry_after)
+        # Recursive call with the same bot method and parameters
+        return await send_telegram_action(bot_method, *args, **kwargs)
+    except exceptions.TelegramAPIError:
+        logging.exception(f"Target [ID:{kwargs.get('chat_id', 'unknown')}]: failed")
+
 
 async def send_message(
     bot: Bot,
@@ -24,31 +56,38 @@ async def send_message(
     :param reply_markup: reply markup.
     :return: success.
     """
-    try:
-        await bot.send_message(
-            user_id,
-            text,
-            disable_notification=disable_notification,
-            reply_markup=reply_markup,
-        )
-    except exceptions.TelegramBadRequest as e:
-        logging.error("Telegram server says - Bad Request: chat not found")
-    except exceptions.TelegramForbiddenError:
-        logging.error(f"Target [ID:{user_id}]: got TelegramForbiddenError")
-    except exceptions.TelegramRetryAfter as e:
-        logging.error(
-            f"Target [ID:{user_id}]: Flood limit is exceeded. Sleep {e.retry_after} seconds."
-        )
-        await asyncio.sleep(e.retry_after)
-        return await send_message(
-            bot, user_id, text, disable_notification, reply_markup
-        )  # Recursive call
-    except exceptions.TelegramAPIError:
-        logging.exception(f"Target [ID:{user_id}]: failed")
-    else:
-        logging.info(f"Target [ID:{user_id}]: success")
-        return True
-    return False
+    # try:
+    #     await bot.send_message(
+    #         user_id,
+    #         text,
+    #         disable_notification=disable_notification,
+    #         reply_markup=reply_markup,
+    #     )
+    # except exceptions.TelegramBadRequest:
+    #     logging.error("Telegram server says - Bad Request: chat not found")
+    # except exceptions.TelegramForbiddenError:
+    #     logging.error(f"Target [ID:{user_id}]: got TelegramForbiddenError")
+    # except exceptions.TelegramRetryAfter as e:
+    #     logging.error(
+    #         f"Target [ID:{user_id}]: Flood limit is exceeded. Sleep {e.retry_after} seconds."
+    #     )
+    #     await asyncio.sleep(e.retry_after)
+    #     return await send_message(
+    #         bot, user_id, text, disable_notification, reply_markup
+    #     )  # Recursive call
+    # except exceptions.TelegramAPIError:
+    #     logging.exception(f"Target [ID:{user_id}]: failed")
+    # else:
+    #     logging.info(f"Target [ID:{user_id}]: success")
+    #     return True
+    # return False
+    return await send_telegram_action(
+        bot.send_message,
+        chat_id=user_id,
+        text=text,
+        disable_notification=disable_notification,
+        reply_markup=reply_markup,
+    )
 
 
 async def broadcast(

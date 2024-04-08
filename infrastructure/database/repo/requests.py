@@ -78,6 +78,11 @@ class RatingUsersRepo:
         logging.info(f"Rating for user {user_id}: {rating}")
         return rating
 
+    async def wipe_ratings(self):
+        stmt = update(RatingUsers).values(rating=0)
+        await self.session.execute(stmt)
+        await self.session.commit()
+
     async def update_rating_by_user_id(self, user_id: int, rating: int):
         stmt = (
             update(RatingUsers)
