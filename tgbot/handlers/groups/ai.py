@@ -11,6 +11,7 @@ from anthropic import APIStatusError, AsyncAnthropic
 from pyrogram import Client, errors
 from pyrogram.types import Message as PyrogramMessage
 
+from tgbot.filters.permissions import HasPermissionsFilter
 from tgbot.filters.rating import RatingFilter
 from tgbot.misc.ai_prompts import GOOD_MODE, NASTY_MODE
 from tgbot.services.ai_answers import AIConversation, AIMedia
@@ -286,24 +287,45 @@ Make sure to close all the 'a' tags properly.
         )
 
 
-@ai_router.message(Command("ai", magic=F.args.as_("prompt")), RatingFilter(rating=50))
+@ai_router.message(
+    Command("ai", magic=F.args.as_("prompt")),
+    or_f(
+        HasPermissionsFilter(can_delete_messages=True),
+        RatingFilter(rating=50),
+    ),
+)
 @ai_router.message(
     Command("ai", magic=F.args.as_("prompt")),
     F.photo[-1].as_("photo"),
-    RatingFilter(rating=50),
+    or_f(
+        HasPermissionsFilter(can_delete_messages=True),
+        RatingFilter(rating=50),
+    ),
 )
 @ai_router.message(
     F.reply_to_message.from_user.id == ASSISTANT_ID,
     F.reply_to_message.text.as_("assistant_message"),
     or_f(F.text.as_("prompt"), F.caption.as_("prompt")),
-    RatingFilter(rating=50),
+    or_f(
+        HasPermissionsFilter(can_delete_messages=True),
+        RatingFilter(rating=50),
+    ),
 )
 @ai_router.message(
     Command("ai", magic=F.args.regexp(MULTIPLE_MESSAGES_REGEX)),
     F.reply_to_message,
-    RatingFilter(rating=50),
+    or_f(
+        HasPermissionsFilter(can_delete_messages=True),
+        RatingFilter(rating=50),
+    ),
 )
-@ai_router.message(Command("ai"), RatingFilter(rating=50))
+@ai_router.message(
+    Command("ai"),
+    or_f(
+        HasPermissionsFilter(can_delete_messages=True),
+        RatingFilter(rating=50),
+    ),
+)
 @flags.rate_limit(limit=300, key="ai", max_times=5)
 @flags.override(user_id=362089194)
 async def ask_ai(
@@ -312,7 +334,7 @@ async def ask_ai(
     bot: Bot,
     state: FSMContext,
     client: Client,
-    rating: int,
+    rating: int = 400,
     prompt: str | None = None,
     command: CommandObject | None = None,
     photo: types.PhotoSize | None = None,

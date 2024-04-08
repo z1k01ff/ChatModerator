@@ -13,7 +13,7 @@ from tgbot.misc.time_utils import format_time
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.redis import RedisStorage
 
-from tgbot.services.broadcaster import send_message
+from tgbot.services.broadcaster import send_telegram_action
 
 THROTTLING_STORAGE_KEY = "throttling"
 
@@ -98,13 +98,12 @@ class ThrottlingMiddleware(BaseMiddleware):
             logging.info(f"Throttling {user_id} for {key_prefix}")
             if isinstance(event, Message):
                 if not silent:
-                    # notification = await event.answer(
-                    # f"Занадто часто! Повторіть спробу через {format_time(left_time)}."
-                    # )
-                    notification = await send_message(
-                        bot=event.bot,
-                        user_id=user_id,
+                    bot = data.get("bot")
+                    notification = await send_telegram_action(
+                        bot.send_message,
+                        chat_id=user_id,
                         text=f"Занадто часто! Повторіть спробу через {format_time(left_time)}.",
+                        reply_to_message_id=event.message_id,
                     )
 
                     await asyncio.sleep(5)
