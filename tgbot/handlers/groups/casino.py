@@ -83,7 +83,7 @@ async def process_dice_roll(
     Command("casino", magic=F.args.regexp(r"(\d+)")), RatingFilter(rating=50)
 )
 @groups_casino_router.message(Command("casino", magic=~F.args), RatingFilter(rating=50))
-@flags.rate_limit(limit=1, key="casino", max_times=3)
+@flags.rate_limit(limit=1 * HOURS, key="casino", max_times=3)
 async def roll_dice_command(
     message: types.Message,
     bot: Bot,

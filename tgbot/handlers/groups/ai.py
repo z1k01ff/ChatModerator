@@ -13,7 +13,7 @@ from pyrogram.types import Message as PyrogramMessage
 
 from tgbot.filters.permissions import HasPermissionsFilter
 from tgbot.filters.rating import RatingFilter
-from tgbot.misc.ai_prompts import GOOD_MODE, NASTY_MODE
+from tgbot.misc.ai_prompts import GOOD_MODE, NASTY_MODE, YANUKOVICH_MODE
 from tgbot.services.ai_answers import AIConversation, AIMedia
 from tgbot.services.token_usage import Opus
 
@@ -141,7 +141,7 @@ def get_system_message(
     long: bool = True,
     content_type: str = "text",
     reply_content_type: str | None = None,
-    ai_mode: Literal["NASTY", "GOOD"] = "GOOD",
+    ai_mode: Literal["NASTY", "GOOD", "YANUKOVICH"] = "GOOD",
 ) -> str:
     reply_context = ""
 
@@ -159,10 +159,11 @@ There is {reply_content_type} in replied message.
         else ""
     )
 
-    if ai_mode == "NASTY":
-        personality = NASTY_MODE
-    elif ai_mode == "GOOD":
-        personality = GOOD_MODE
+    personality = {
+        "NASTY": NASTY_MODE,
+        "GOOD": GOOD_MODE,
+        "YANUKOVICH": YANUKOVICH_MODE,
+    }.get(ai_mode, "")
 
     chat_context = f"""<chat_context>
 You are in {chat_title} named Telegram Group. 
@@ -482,6 +483,12 @@ async def set_nasty_mode(message: types.Message, state: FSMContext):
 async def set_good_mode(message: types.Message, state: FSMContext):
     await message.answer("Добре, тепер я буду добрішим.")
     await state.update_data(ai_mode="GOOD")
+
+
+# @ai_router.message(Command("yanukovich"))
+# async def set_yanukovich_mode(message: types.Message, state: FSMContext):
+#     await message.answer("Добре, тепер я буду говорити як Янукович.")
+#     await state.update_data(ai_mode="YANUKOVICH")
 
 
 @ai_router.message(Command("off_ai"))

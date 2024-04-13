@@ -69,11 +69,19 @@ async def read_only_mode(message: types.Message, bot: Bot):
         member_username,
         member_mentioned,
     ) = get_members_info(message)
+    if message.reply_to_message.sender_chat:
+        await message.chat.ban_sender_chat(
+            message.reply_to_message.sender_chat.id,
+        )
+        await message.answer(
+            f"Канал {message.reply_to_message.sender_chat.title} був забанен {admin_mentioned}"
+        )
+        return
 
     # Разбиваем команду на аргументы с помощью RegExp
 
     # Revised regular expression to capture duration and reason
-    command_parse = re.compile(r"(?:!ro|/ro)\s*(\d+[mhMH]?)?\s*(\S.*)")
+    command_parse = re.compile(r"(?:!ro|\/ro)(@[^\s]+)?\s*(\d+[mhMHd])?\s*(\S.*)")
 
     # Match the command against the input text
     parsed = command_parse.match(message.text)
@@ -82,8 +90,8 @@ async def read_only_mode(message: types.Message, bot: Bot):
     # reason = "без указания причины" if not reason else f"по причине: {reason}"
 
     if parsed:
-        duration = parsed.group(1)  # This captures the duration
-        reason = parsed.group(2)  # This captures the reason
+        duration = parsed.group(2)  # This captures the duration
+        reason = parsed.group(3)  # This captures the reason
 
         # Default values if not specified
         if not duration:
@@ -113,8 +121,11 @@ async def read_only_mode(message: types.Message, bot: Bot):
         )
 
         # Отправляем сообщение
+
+        kiev_timezone = datetime.timezone(datetime.timedelta(hours=3))
+        ro_end_date_kiev = ro_end_date.astimezone(kiev_timezone)
         await message.answer(
-            f"Користувачу {member_mentioned} було заборонено писати до {ro_end_date.strftime('%d.%m.%Y %H:%M')} "
+            f"Користувачу {member_mentioned} було заборонено писати до {ro_end_date_kiev.strftime('%d.%m.%Y %H:%M')} "
             f"адміністратором {admin_mentioned} {reason}"
         )
 
@@ -553,6 +564,12 @@ async def promote_user(message: types.Message, bot: Bot):
 )
 @groups_moderate_router.message(
     Command("title", prefix="/!", magic=F.args.len() > 0),
+    ~F.reply_to_message,
+    F.from_user.as_("member_self"),
+    HasPermissionsFilter(can_promote_members=True),
+)
+@groups_moderate_router.message(
+    Command("title", prefix="/!", magic=F.args.len() > 0),
     F.reply_to_message.from_user.as_("member"),
     RatingFilter(rating=300),
 )
@@ -561,12 +578,6 @@ async def promote_user(message: types.Message, bot: Bot):
     ~F.reply_to_message,
     F.from_user.as_("member_self"),
     RatingFilter(rating=100),
-)
-@groups_moderate_router.message(
-    Command("title", prefix="/!", magic=F.args.len() > 0),
-    ~F.reply_to_message,
-    F.from_user.as_("member_self"),
-    HasPermissionsFilter(can_promote_members=True),
 )
 async def promote_with_title(
     message: types.Message,

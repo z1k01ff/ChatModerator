@@ -39,7 +39,11 @@ async def shutdown(client: Client) -> None:
 
 
 def register_global_middlewares(
-    dp: Dispatcher, config: Config, session_pool, openai_client
+    dp: Dispatcher,
+    config: Config,
+    session_pool,
+    openai_client,
+    storage,
 ):
     """
     Register global middlewares for the given dispatcher.
@@ -58,8 +62,8 @@ def register_global_middlewares(
     for middleware_type in middleware_types:
         dp.message.outer_middleware(middleware_type)
         dp.callback_query.outer_middleware(middleware_type)
-    dp.message.middleware(ThrottlingMiddleware())
-    dp.message_reaction.middleware(ThrottlingMiddleware())
+    dp.message.middleware(ThrottlingMiddleware(storage))
+    dp.message_reaction.middleware(ThrottlingMiddleware(storage))
     dp.update.outer_middleware(DatabaseMiddleware(session_pool))
     dp.message.outer_middleware(MessageUserMiddleware())
 
@@ -144,7 +148,7 @@ async def main():
         ai_router,
     )
 
-    register_global_middlewares(dp, config, session_pool, openai_client)
+    register_global_middlewares(dp, config, session_pool, openai_client, storage)
 
     dp.workflow_data.update(
         ratings_cache=ratings_cache,

@@ -1,63 +1,34 @@
 import asyncio
 from contextlib import suppress
 import logging
-from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Dict, Union
 
-from aiogram import BaseMiddleware, Bot
+from aiogram import BaseMiddleware
 from aiogram.dispatcher.flags import get_flag
-from aiogram.types import Message, MessageReactionUpdated, Chat
+from aiogram.types import Message, MessageReactionUpdated
 
 from tgbot.misc.time_utils import format_time
 
-from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.redis import RedisStorage
 
 from tgbot.services.broadcaster import send_telegram_action
 
-THROTTLING_STORAGE_KEY = "throttling"
-
 
 class ThrottlingMiddleware(BaseMiddleware):
-    def __init__(self) -> None:
+    def __init__(self, storage: RedisStorage) -> None:
         super().__init__()
-        self.users: dict
-        self.storage: RedisStorage
+        self.storage: RedisStorage = storage
 
-    async def get_users_from_storage(self, data: dict):
-        self.storage = data.get("state").storage
-        bot: Bot = data.get("bot")
-        event_chat: Chat = data.get("event_chat")
-        chat_data: dict = await self.storage.get_data(
-            StorageKey(
-                bot_id=bot.id,
-                chat_id=event_chat.id,
-                user_id=event_chat.id,
-            )
-        )
+    async def _get_throttle_count(self, key: str) -> int:
+        count = await self.storage.redis.get(key)
+        return int(count) if count is not None else 0
 
-        throttling_data = chat_data.get(THROTTLING_STORAGE_KEY, {})
-        self.users = {
-            key: (datetime.fromisoformat(time_str), count)
-            for key, (time_str, count) in throttling_data.items()
-        }
+    async def _set_throttle_count(self, key: str, count: int, ttl: int) -> None:
+        await self.storage.redis.set(key, count, ex=ttl)
 
-    async def set_users_to_storage(self, data: dict):
-        bot: Bot = data.get("bot")
-        event_chat: Chat = data.get("event_chat")
-        throttling_data = {
-            key: (time_obj.isoformat(), count)
-            for key, (time_obj, count) in self.users.items()
-        }
-
-        await self.storage.update_data(
-            StorageKey(
-                bot_id=bot.id,
-                chat_id=event_chat.id,
-                user_id=event_chat.id,
-            ),
-            {THROTTLING_STORAGE_KEY: throttling_data},
-        )
+    async def _get_remaining_ttl(self, key: str) -> int:
+        ttl = await self.storage.redis.ttl(key)
+        return ttl if ttl > 0 else 0  # Ensure ttl is non-negative
 
     async def __call__(
         self,
@@ -72,7 +43,6 @@ class ThrottlingMiddleware(BaseMiddleware):
             return await handler(event, data)
         user_id = event_from_user.id
 
-        now = datetime.now()
         rate_limit = get_flag(data, "rate_limit")
         if not rate_limit:
             logging.info(f"No rate limit found: {rate_limit}")
@@ -87,33 +57,31 @@ class ThrottlingMiddleware(BaseMiddleware):
         chat_marker = rate_limit.get("chat")
         silent = rate_limit.get("silent", False)
 
-        if chat_marker is not None:
-            key = f"{key_prefix}:{event.chat.id}"
-        else:
-            key = f"{key_prefix}:{user_id}"
+        key = f"THROTTLING:{key_prefix}:{event.chat.id if chat_marker else user_id}"
+        current_count = await self._get_throttle_count(key)
+        logging.info(f"Current count: {current_count}")
+        logging.info(f"Max times: {max_times}")
 
-        await self.get_users_from_storage(data)
-        if left_time := self._should_throttle(key, now, limit, max_times):
-            await self.set_users_to_storage(data)
+        if current_count >= max_times:
+            remaining_ttl = await self._get_remaining_ttl(key)
             logging.info(f"Throttling {user_id} for {key_prefix}")
-            if isinstance(event, Message):
-                if not silent:
-                    bot = data.get("bot")
-                    notification = await send_telegram_action(
-                        bot.send_message,
-                        chat_id=user_id,
-                        text=f"Занадто часто! Повторіть спробу через {format_time(left_time)}.",
-                        reply_to_message_id=event.message_id,
-                    )
-
-                    await asyncio.sleep(5)
+            if isinstance(event, Message) and not silent:
+                bot = data.get("bot")
+                notification = await send_telegram_action(
+                    bot.send_message,
+                    chat_id=event.chat.id,
+                    text=f"Занадто часто! Повторіть спробу через {format_time(remaining_ttl)}.",
+                    reply_to_message_id=event.message_id,
+                )
+                await asyncio.sleep(5)
+                with suppress(Exception):
+                    await event.delete()
                     await notification.delete()
-                    if isinstance(event, Message):
-                        with suppress(Exception):
-                            await event.delete()
             return  # Stop processing if throttled
 
-        await self.set_users_to_storage(data)
+        # Increment or initialize the throttle count
+        await self._set_throttle_count(key, current_count + 1, limit)
+
         # Proceed with the next handler if not throttled
         return await handler(event, data)
 
@@ -123,19 +91,4 @@ class ThrottlingMiddleware(BaseMiddleware):
         if override:
             user_override = override.get("user_id")
             return user_override == user_id
-        return False
-
-    def _should_throttle(self, key, now, limit, max_times):
-        if key in self.users:
-            last_time, throttle_count = self.users[key]
-            if now - last_time < timedelta(seconds=limit):
-                if throttle_count < max_times:
-                    # Increment the throttle count and return False (don't throttle yet)
-                    self.users[key] = (now, throttle_count + 1)
-                    return False
-                else:
-                    # Throttle if max_times is reached
-                    return limit - (now - self.users[key][0]).seconds
-        # Not previously throttled or time limit passed, reset or initialize throttle data
-        self.users[key] = (now, 1)  # Start counting throttling attempts
         return False
