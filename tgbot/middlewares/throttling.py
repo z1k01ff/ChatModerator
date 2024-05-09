@@ -28,7 +28,7 @@ class ThrottlingMiddleware(BaseMiddleware):
 
     async def _get_remaining_ttl(self, key: str) -> int:
         ttl = await self.storage.redis.ttl(key)
-        return ttl if ttl > 0 else 0  # Ensure ttl is non-negative
+        return int(ttl) if ttl > 0 else 0  # Ensure ttl is non-negative
 
     async def __call__(
         self,
@@ -80,7 +80,7 @@ class ThrottlingMiddleware(BaseMiddleware):
             return  # Stop processing if throttled
 
         # Increment or initialize the throttle count
-        await self._set_throttle_count(key, current_count + 1, limit)
+        await self._set_throttle_count(key, current_count + 1, int(limit))
 
         # Proceed with the next handler if not throttled
         return await handler(event, data)
