@@ -44,7 +44,7 @@ def extract_reply_photo(message: types.Message) -> types.PhotoSize | None:
 
 def extract_reply_person(message: types.Message, assistant_message: str | None) -> str:
     if assistant_message:
-        return "Your"
+        return "You (assistant)"
     if reply := message.reply_to_message:
         reply: types.Message
         if reply.forward_from_chat:
@@ -153,8 +153,9 @@ def get_system_message(
     if reply_prompt or assistant_message:
         reply_context = f"""
 <reply_context>
-<reply_to_person>{reply_person}</reply_to_person>
-<reply_text>{reply_prompt if reply_prompt else assistant_message if assistant_message else ''}</reply_text>
+<reply_to>{reply_person} Said:
+{reply_prompt if reply_prompt else assistant_message if assistant_message else ''}
+</reply_to>
 There is {reply_content_type} in replied message.
 </reply_context>
 """

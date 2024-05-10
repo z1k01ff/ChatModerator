@@ -51,14 +51,7 @@ def get_restriction_period(text: str) -> int:
     HasPermissionsFilter(can_restrict_members=True),
 )
 async def read_only_mode(message: types.Message, bot: Bot):
-    """Хендлер с фильтром в группе, где можно использовать команду !ro ИЛИ /ro
-    :time int: время на которое нужно замутить пользователя в минутах
-    :reason str: причина мута. При отсутствии времени и/или причины, то
-    используются стандартные значения: 5 минут и None для времени и причины соответственно
-
-    Примеры:
-    !ro 5m замутить пользователя на 5 минут
-    """
+    """Хендлер с фильтром в группе, где можно использовать команду !ro ИЛИ /ro"""
 
     # Создаем переменные для удобства
     (
@@ -78,17 +71,11 @@ async def read_only_mode(message: types.Message, bot: Bot):
         )
         return
 
-    # Разбиваем команду на аргументы с помощью RegExp
-
     # Revised regular expression to capture duration and reason
-    command_parse = re.compile(r"(?:!ro|\/ro)(@[^\s]+)?\s*(\d+[mhMHd])?\s*(\S.*)")
+    command_parse = re.compile(r"(?:!ro|\/ro)(@[^\s]+)?\s*(\d+[mhMHd])?\s*(.*)")
 
     # Match the command against the input text
     parsed = command_parse.match(message.text)
-    # Проверяем на наличие и корректность срока RO.
-    # Проверяем на наличие причины.
-    # reason = "без указания причины" if not reason else f"по причине: {reason}"
-
     if parsed:
         duration = parsed.group(2)  # This captures the duration
         reason = parsed.group(3)  # This captures the reason
@@ -121,7 +108,6 @@ async def read_only_mode(message: types.Message, bot: Bot):
         )
 
         # Отправляем сообщение
-
         kiev_timezone = datetime.timezone(datetime.timedelta(hours=3))
         ro_end_date_kiev = ro_end_date.astimezone(kiev_timezone)
         await message.answer(
