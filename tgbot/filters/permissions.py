@@ -19,15 +19,21 @@ class HasPermissionsFilter(BaseFilter):
     can_pin_messages: bool = False
     CHAT_ADMINS: typing.ClassVar[typing.Dict[int, typing.List[types.ChatMember]]] = {}
 
-    async def __call__(self, message: types.Message) -> bool:
+    async def __call__(self, message: types.Message) -> bool | dict | None:
         chat_id = message.chat.id
         user_id = message.from_user.id
 
         if chat_id not in self.CHAT_ADMINS:
             self.CHAT_ADMINS[chat_id] = await message.chat.get_administrators()
 
-        chat_member: ChatMemberAdministrator = next((member for member in self.CHAT_ADMINS[chat_id] if
-                            member.user.id == user_id), None)
+        chat_member: ChatMemberAdministrator = next(
+            (
+                member
+                for member in self.CHAT_ADMINS[chat_id]
+                if member.user.id == user_id
+            ),
+            None,
+        )
 
         if not chat_member:
             return False  # User not found among chat admins
@@ -46,4 +52,5 @@ class HasPermissionsFilter(BaseFilter):
             (self.can_pin_messages, chat_member.can_pin_messages),
         ]
 
-        return all(required == granted for required, granted in checks if required)
+        if all(required == granted for required, granted in checks if required):
+            return {"is_admin": True}

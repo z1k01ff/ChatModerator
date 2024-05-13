@@ -572,16 +572,17 @@ async def promote_with_title(
     member: types.User | None = None,
     member_self: types.User | None = None,
     rating: int | None = None,
+    is_admin: bool | None = None,
 ):
     if member_self:
         member = member_self
-        admin = await bot.get_me()
+        admin = await bot.me()
 
     elif member:
         admin = message.from_user
         target_rating = await repo.rating_users.get_rating_by_user_id(member.id) or 0
 
-        if rating:
+        if rating and not is_admin:
             if rating > 1000:
                 LIMIT_TARGET_RATING = 600
             elif rating > 300:
@@ -589,6 +590,8 @@ async def promote_with_title(
 
             else:
                 raise ValueError("Неправильний рейтинг для цієї команди")
+        elif is_admin:
+            LIMIT_TARGET_RATING = 100000
         else:
             LIMIT_TARGET_RATING = 100
 
@@ -610,11 +613,11 @@ async def promote_with_title(
     command_parse = re.compile(r"(!title|/title)(@[^\s]+)?( [\w+\D]+)?")
     parsed = command_parse.match(message.text)
     logging.info(parsed.groups())
-    custom_title = parsed.group(3)
+    custom_title = parsed.group(3)[:16]
 
     try:
         chat_member = await message.chat.get_member(member_id)
-        if chat_member.status == "administrator":
+        if chat_member.status in {"administrator", "creator"}:
             text = f"Користувачу {member_mentioned} було змінено посаду на {custom_title} адміністратором {admin_mentioned}"
             await message.chat.set_administrator_custom_title(
                 user_id=member_id, custom_title=custom_title
