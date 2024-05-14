@@ -8,6 +8,7 @@ from aiogram.filters import Command, CommandObject, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hlink
 from anthropic import APIStatusError, AsyncAnthropic
+from openai import AsyncOpenAI
 from pyrogram import Client, errors
 from pyrogram.types import Message as PyrogramMessage
 
@@ -19,7 +20,11 @@ from tgbot.misc.ai_prompts import (
     NASTY_MODE,
     YANUKOVICH_MODE,
 )
-from tgbot.services.ai_answers import AIConversation, AIMedia
+from tgbot.services.ai_service.ai_conversation import AIConversation
+from tgbot.services.ai_service.anthropic_provider import (
+    AnthropicProvider,
+)
+from tgbot.services.ai_service.openai_provider import OpenAIProvider
 from tgbot.services.token_usage import Opus
 
 ai_router = Router()
@@ -179,7 +184,7 @@ Sometimes people make replies to other people's messages, and sometimes to yours
 People speak on wide range of topics.
 There is a {content_type} in the message.
 
-There are funny commands: to measure the penis of a participant; to determine the nationality, or sexual orientation.
+There are funny commands: to measure the penis of a participant; to determine the nationality, or sexual orientation with commands: /biba, /nation, /gay
 </chat_context>"""
     rating_system = """<rating_system>
 The chat has a rating system. People can rate messages with a reaction. The rating system is used to create a top helpers rating between the members of the group.
@@ -223,6 +228,7 @@ async def get_notification(usage_cost: float) -> str:
 
 @ai_router.message(Command("history"), RatingFilter(rating=600))
 @flags.rate_limit(limit=600, key="history", max_times=1, chat=True)
+@flags.override(user_id=362089194)
 async def summarize_chat_history(
     message: types.Message,
     client: Client,
@@ -244,6 +250,10 @@ async def summarize_chat_history(
     ai_conversation = AIConversation(
         bot=bot,
         storage=state.storage,
+        ai_provider=AnthropicProvider(
+            client=anthropic_client,
+            model_name="claude-3-haiku-20240307",
+        ),
         system_message="""You're a professional summarizer of conversation. You take all messages at determine the most important topics in the conversation.
 List all discussed topics in the history as a list of bullet points.
 Use Ukrainian language. Tell the datetime period of the earliest message (e.g. 2022-03-07 12:00).
@@ -281,7 +291,6 @@ Make sure to close all the 'a' tags properly.
 </example_format>
 """,
         max_tokens=2000,
-        model_name="claude-3-haiku-20240307",
     )
     history = f"<messages_history>{messages_history}</messages_history>"
     ai_conversation.add_user_message(text=f"Summarize the chat history\n{history}")
@@ -290,7 +299,6 @@ Make sure to close all the 'a' tags properly.
         await ai_conversation.answer_with_ai(
             message,
             sent_message,
-            anthropic_client,
             notification="#history",
             apply_formatting=False,
         )
@@ -346,6 +354,7 @@ Make sure to close all the 'a' tags properly.
 async def ask_ai(
     message: types.Message,
     anthropic_client: AsyncAnthropic,
+    openai_client: AsyncOpenAI,
     bot: Bot,
     state: FSMContext,
     client: Client,
@@ -357,6 +366,22 @@ async def ask_ai(
 ):
     if message.quote:
         return
+
+    state_data = await state.get_data()
+    provider = state_data.get("ai_provider", "anthropic")
+    ai_provider = (
+        AnthropicProvider(
+            client=anthropic_client,
+            model_name="claude-3-haiku-20240307"
+            if rating < 300
+            else "claude-3-opus-20240229",
+        )
+        if provider == "anthropic"
+        else OpenAIProvider(
+            client=openai_client,
+            model_name="gpt-3.5-turbo" if rating < 300 else "gpt-4o",
+        )
+    )
 
     actor_name = message.from_user.full_name
     reply_prompt = extract_reply_prompt(message)
@@ -419,15 +444,13 @@ async def ask_ai(
 
     ai_conversation = AIConversation(
         bot=bot,
+        ai_provider=ai_provider,
         storage=state.storage,
         system_message=system_message,
         max_tokens=(
             (400 if rating < 300 else 700)
             if long_answer
             else (200 if rating < 300 else 400)
-        ),
-        model_name=(
-            "claude-3-haiku-20240307" if rating < 300 else "claude-3-opus-20240229"
         ),
     )
     usage_cost = await ai_conversation.calculate_cost(
@@ -441,7 +464,7 @@ async def ask_ai(
             reply_photo,
             destination=BytesIO(),  # type: ignore
         )
-        ai_media = AIMedia(photo_bytes_io)
+        ai_media = ai_provider.media_class(photo_bytes_io)
         ai_conversation.add_user_message(text="Image", ai_media=ai_media)
         if prompt:
             ai_conversation.add_assistant_message("Дякую!")
@@ -449,7 +472,7 @@ async def ask_ai(
     if photo:
         logging.info("Adding user message with photo")
         photo_bytes_io = await bot.download(photo, destination=BytesIO())
-        ai_media = AIMedia(photo_bytes_io)
+        ai_media = ai_provider.media_class(photo_bytes_io)
         ai_conversation.add_user_message(text=prompt, ai_media=ai_media)
     elif prompt:
         logging.info("Adding user message without photo")
@@ -469,9 +492,8 @@ async def ask_ai(
 
     try:
         input_usage = await ai_conversation.answer_with_ai(
-            message,
-            sent_message,
-            anthropic_client,
+            message=message,
+            sent_message=sent_message,
             notification=notification,
         )
         await ai_conversation.update_usage(
@@ -505,12 +527,6 @@ async def set_manipulator_mode(message: types.Message, state: FSMContext):
     await state.update_data(ai_mode="MANIPUlATOR")
 
 
-# @ai_router.message(Command("yanukovich"))
-# async def set_yanukovich_mode(message: types.Message, state: FSMContext):
-#     await message.answer("Добре, тепер я буду говорити як Янукович.")
-#     await state.update_data(ai_mode="YANUKOVICH")
-
-
 @ai_router.message(Command("off_ai"))
 async def turn_off_ai(message: types.Message, state: FSMContext):
     await message.answer("Добре, я вимкнувся.")
@@ -521,6 +537,19 @@ async def turn_off_ai(message: types.Message, state: FSMContext):
 async def turn_on_ai(message: types.Message, state: FSMContext):
     await message.answer("Добре, я ввімкнувся.")
     await state.update_data(ai_mode="GOOD")
+
+
+# command to handle /provider openai; /provider anthropic
+@ai_router.message(Command("provider"))
+async def set_ai_provider(
+    message: types.Message, state: FSMContext, command: CommandObject
+):
+    provider = command.args
+    if provider.casefold() not in ("openai", "anthropic"):
+        return await message.answer("Невірний провайдер.")
+
+    await state.update_data(ai_provider=provider)
+    await message.answer(f"Провайдер змінено на {provider}")
 
 
 @ai_router.message(F.text)

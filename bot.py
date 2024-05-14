@@ -153,6 +153,7 @@ async def main():
     dp.workflow_data.update(
         ratings_cache=ratings_cache,
         anthropic_client=anthropic_client,
+        openai_client=openai_client,
     )
     bot.session.middleware(BotMessages(session_pool))
     await bot.delete_webhook()

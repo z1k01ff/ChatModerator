@@ -27,6 +27,10 @@ async def set_default_commands(bot: Bot):
         "media_true": "Дозволяє використання медіа",
         "promote": "Підвищити користувача",
         "demote": "Понизити користувача",
+        "provider": "Змінити AI провайдера",
+        "cunning": "Увімкнути хитрого ШІ",
+        "good": "Увімкнути доброго ШІ",
+        "nasty": "Увімкнути поганого ШІ",
         **commands_members,
     }
 
