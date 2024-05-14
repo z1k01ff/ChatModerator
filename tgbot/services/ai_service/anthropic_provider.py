@@ -53,6 +53,3 @@ class AnthropicProvider(AIProviderBase):
         ) as stream:
             async for partial_text in stream.text_stream:
                 yield partial_text
-
-        # final_text = await stream.get_final_text()
-        # yield final_text
