@@ -6,10 +6,10 @@ from typing import Optional
 from aiogram import Bot
 from aiogram.types import Message, ReactionTypeEmoji
 
-from tgbot.services.markdown_parser import telegram_format
 from tgbot.services.token_usage import TokenUsageManager
 from tgbot.services.ai_service.message_handler import MessageHandler
 from tgbot.services.ai_service.anthropic_provider import AIMediaBase, AIProviderBase
+from chatgpt_md_converter import telegram_format
 
 
 class AIConversation(TokenUsageManager):

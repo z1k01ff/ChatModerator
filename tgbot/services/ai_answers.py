@@ -11,8 +11,8 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Message, ReactionTypeEmoji
 from anthropic import AsyncAnthropic, types
 
-from tgbot.services.markdown_parser import telegram_format
 from tgbot.services.token_usage import TokenUsageManager
+from chatgpt_md_converter import telegram_format
 
 
 @dataclass

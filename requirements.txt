@@ -17,3 +17,4 @@ openai
 anthropic
 cachetools
 pyrogram
+chatgpt-md-converter
