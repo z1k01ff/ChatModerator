@@ -40,16 +40,11 @@ class HasPermissionsFilter(BaseFilter):
 
         # Handle the case where the user is the chat creator
         if chat_member.status == ChatMemberStatus.CREATOR:
-            return True
+            return {"is_admin": True}
 
         checks = [
-            (self.can_edit_messages, chat_member.can_edit_messages),
             (self.can_delete_messages, chat_member.can_delete_messages),
             (self.can_restrict_members, chat_member.can_restrict_members),
-            (self.can_promote_members, chat_member.can_promote_members),
-            (self.can_change_info, chat_member.can_change_info),
-            (self.can_invite_users, chat_member.can_invite_users),
-            (self.can_pin_messages, chat_member.can_pin_messages),
         ]
 
         if all(required == granted for required, granted in checks if required):

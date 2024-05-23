@@ -5,6 +5,7 @@ from aiogram.enums import ChatType
 from aiogram.filters import Command, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
+from aiogram.exceptions import TelegramBadRequest
 from cachetools import TTLCache
 
 from infrastructure.database.repo.requests import RequestsRepo
@@ -185,7 +186,10 @@ async def add_reaction_rating_handler(
             f"but the message is not found in the database"
         )
         return
-    helper = await bot.get_chat_member(reaction.chat.id, helper_id)
+    try:
+        helper = await bot.get_chat_member(reaction.chat.id, helper_id)
+    except TelegramBadRequest:
+        return
 
     upgraded = await process_new_rating(
         rating_change,

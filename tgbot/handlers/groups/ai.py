@@ -1,4 +1,5 @@
 import logging
+
 import re
 from io import BytesIO
 from typing import Literal
@@ -9,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hlink
 from anthropic import APIStatusError, AsyncAnthropic
 from openai import AsyncOpenAI
+from elevenlabs.client import AsyncElevenLabs
 from pyrogram import Client, errors
 from pyrogram.types import Message as PyrogramMessage
 
@@ -133,7 +135,11 @@ async def get_messages_history(
             if (added_message.text or added_message.caption)
             and (
                 with_bot
-                or (not with_bot and added_message.from_user.id != ASSISTANT_ID)
+                or (
+                    not with_bot and added_message.from_user.id != ASSISTANT_ID
+                    if added_message.from_user
+                    else True
+                )
             )
         ]
     )
@@ -235,6 +241,7 @@ async def summarize_chat_history(
     state: FSMContext,
     bot: Bot,
     anthropic_client: AsyncAnthropic,
+    elevenlabs_client: AsyncElevenLabs,
     with_reply: bool = False,
     with_bot: bool = True,
 ):
@@ -249,6 +256,7 @@ async def summarize_chat_history(
 
     ai_conversation = AIConversation(
         bot=bot,
+        elevenlabs_client=elevenlabs_client,
         storage=state.storage,
         ai_provider=AnthropicProvider(
             client=anthropic_client,
@@ -358,6 +366,7 @@ async def ask_ai(
     bot: Bot,
     state: FSMContext,
     client: Client,
+    elevenlabs_client: AsyncElevenLabs,
     rating: int = 400,
     prompt: str | None = None,
     command: CommandObject | None = None,
@@ -444,6 +453,7 @@ async def ask_ai(
 
     ai_conversation = AIConversation(
         bot=bot,
+        elevenlabs_client=elevenlabs_client,
         ai_provider=ai_provider,
         storage=state.storage,
         system_message=system_message,
@@ -491,15 +501,19 @@ async def ask_ai(
     )
 
     try:
-        input_usage = await ai_conversation.answer_with_ai(
+        response = await ai_conversation.answer_with_ai(
             message=message,
             sent_message=sent_message,
             notification=notification,
+            with_tts=ai_mode == "NASTY",
         )
+        if not response:
+            return
+
         await ai_conversation.update_usage(
             message.chat.id,
             message.from_user.id,
-            input_usage,
+            response.usage,
             ai_conversation.max_tokens * 0.75,
         )
     except APIStatusError as e:

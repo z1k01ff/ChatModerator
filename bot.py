@@ -1,4 +1,5 @@
 import asyncio
+from elevenlabs.client import AsyncElevenLabs
 import logging
 
 import betterlogging as bl
@@ -7,6 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.strategy import FSMStrategy
 from aiogram.fsm.storage.redis import DefaultKeyBuilder, RedisStorage
 from anthropic import AsyncAnthropic
+import httpx
 from openai import AsyncOpenAI
 from pyrogram import Client
 
@@ -136,6 +138,11 @@ async def main():
     ratings_cache = {}
     openai_client = AsyncOpenAI(api_key=config.openai.api_key)
 
+    elevenlabs_client = AsyncElevenLabs(
+        api_key=config.elevenlabs.api_key,
+        httpx_client=httpx.AsyncClient(),
+    )
+
     anthropic_client = AsyncAnthropic(
         api_key=config.anthropic.api_key,
     )
@@ -154,6 +161,7 @@ async def main():
         ratings_cache=ratings_cache,
         anthropic_client=anthropic_client,
         openai_client=openai_client,
+        elevenlabs_client=elevenlabs_client,
     )
     bot.session.middleware(BotMessages(session_pool))
     await bot.delete_webhook()

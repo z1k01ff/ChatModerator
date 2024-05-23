@@ -18,3 +18,5 @@ anthropic
 cachetools
 pyrogram
 chatgpt-md-converter
+pydub
+elevenlabs

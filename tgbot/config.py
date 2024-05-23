@@ -161,21 +161,30 @@ class Miscellaneous:
 
 
 @dataclass
-class OpenAI:
+class OpenAIConfig:
     api_key: str
 
     @staticmethod
     def from_env(env):
-        return OpenAI(api_key=env.str("OPENAI_API_KEY"))
+        return OpenAIConfig(api_key=env.str("OPENAI_API_KEY"))
 
 
 @dataclass
-class Anthropic:
+class ElevenLabsConfig:
     api_key: str
 
     @staticmethod
     def from_env(env):
-        return Anthropic(api_key=env.str("ANTHROPIC_API_KEY"))
+        return ElevenLabsConfig(api_key=env.str("ELEVENLABS_API_KEY"))
+
+
+@dataclass
+class AnthropicConfig:
+    api_key: str
+
+    @staticmethod
+    def from_env(env):
+        return AnthropicConfig(api_key=env.str("ANTHROPIC_API_KEY"))
 
 
 @dataclass
@@ -201,9 +210,10 @@ class Config:
     misc: Miscellaneous
     db: Optional[DbConfig] = None
     redis: Optional[RedisConfig] = None
-    openai: Optional[OpenAI] = None
-    anthropic: Optional[Anthropic] = None
+    openai: Optional[OpenAIConfig] = None
+    anthropic: Optional[AnthropicConfig] = None
     client: Optional[ClientAPI] = None
+    elevenlabs: Optional[ElevenLabsConfig] = None
 
 
 def load_config(path: str = None) -> Config:
@@ -225,6 +235,7 @@ def load_config(path: str = None) -> Config:
         client=ClientAPI.from_env(env),
         redis=RedisConfig.from_env(env),
         misc=Miscellaneous(),
-        openai=OpenAI.from_env(env),
-        anthropic=Anthropic.from_env(env),
+        openai=OpenAIConfig.from_env(env),
+        anthropic=AnthropicConfig.from_env(env),
+        elevenlabs=ElevenLabsConfig.from_env(env),
     )
