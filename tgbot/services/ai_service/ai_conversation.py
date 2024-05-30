@@ -26,7 +26,7 @@ class AIConversation(TokenUsageManager):
         storage,
         bot: Bot,
         ai_provider: AIProviderBase,
-        elevenlabs_client: AsyncElevenLabs,
+        elevenlabs_client: AsyncElevenLabs | None = None,
         max_tokens: int = 450,
         system_message: Optional[str] = None,
     ):

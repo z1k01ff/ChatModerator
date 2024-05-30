@@ -241,7 +241,6 @@ async def summarize_chat_history(
     state: FSMContext,
     bot: Bot,
     anthropic_client: AsyncAnthropic,
-    elevenlabs_client: AsyncElevenLabs,
     with_reply: bool = False,
     with_bot: bool = True,
 ):
@@ -256,7 +255,6 @@ async def summarize_chat_history(
 
     ai_conversation = AIConversation(
         bot=bot,
-        elevenlabs_client=elevenlabs_client,
         storage=state.storage,
         ai_provider=AnthropicProvider(
             client=anthropic_client,
@@ -479,7 +477,9 @@ async def ask_ai(
         if prompt:
             ai_conversation.add_assistant_message("Дякую!")
 
-    if photo:
+    if message.photo or photo:
+        if not photo:
+            photo = message.photo[-1]
         logging.info("Adding user message with photo")
         photo_bytes_io = await bot.download(photo, destination=BytesIO())
         ai_media = ai_provider.media_class(photo_bytes_io)
