@@ -526,19 +526,19 @@ async def ask_ai(
 @ai_router.message(Command("nasty"))
 async def set_nasty_mode(message: types.Message, state: FSMContext):
     await message.answer("Добре, тепер я буду грубішим.")
-    await state.update_data(ai_mode="NASTY")
+    await state.update_data(ai_mode="NASTY", provider="anthropic")
 
 
 @ai_router.message(Command("good"))
 async def set_good_mode(message: types.Message, state: FSMContext):
     await message.answer("Добре, тепер я буду добрішим.")
-    await state.update_data(ai_mode="GOOD")
+    await state.update_data(ai_mode="GOOD", provider="openai")
 
 
 @ai_router.message(Command("cunning"))
 async def set_manipulator_mode(message: types.Message, state: FSMContext):
     await message.answer("Добре, поїхали :)")
-    await state.update_data(ai_mode="MANIPUlATOR")
+    await state.update_data(ai_mode="MANIPUlATOR", provider="openai")
 
 
 @ai_router.message(Command("off_ai"))
