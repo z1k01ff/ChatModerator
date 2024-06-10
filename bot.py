@@ -16,8 +16,14 @@ from infrastructure.database.repo.requests import Database
 from infrastructure.database.setup import create_engine, create_session_pool
 from tgbot.config import Config, load_config
 from tgbot.handlers.essential.fun import fun_router
-from tgbot.handlers.groups import ai_router, group_router, groups_rating_router
+from tgbot.handlers.groups import (
+    ai_router,
+    group_router,
+    groups_rating_router,
+    payment_router,
+)
 from tgbot.handlers.private.basic import basic_router
+from tgbot.handlers.private.admin import admin_router
 from tgbot.middlewares.bot_messages import BotMessages
 from tgbot.middlewares.database import DatabaseMiddleware
 from tgbot.middlewares.policy_content import OpenAIModerationMiddleware
@@ -27,6 +33,7 @@ from tgbot.middlewares.ratings_cache import (
 from tgbot.middlewares.throttling import ThrottlingMiddleware
 from tgbot.misc.default_commands import set_default_commands
 from tgbot.services import broadcaster
+from aiogram.client.default import DefaultBotProperties
 
 
 async def on_startup(bot: Bot, config: Config, client: Client) -> None:
@@ -122,7 +129,9 @@ async def main():
     config = load_config(".env")
     storage = get_storage(config)
 
-    bot = Bot(token=config.tg_bot.token, parse_mode="HTML")
+    bot = Bot(
+        token=config.tg_bot.token, default=DefaultBotProperties(parse_mode="HTML")
+    )
     engine = create_engine("main.db")
     db = Database(engine)
     client = Client(
@@ -148,10 +157,12 @@ async def main():
     )
 
     dp.include_routers(
+        payment_router,
         groups_rating_router,
         group_router,
         fun_router,
         basic_router,
+        admin_router,
         ai_router,
     )
 

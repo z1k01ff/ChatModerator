@@ -2,11 +2,14 @@ import logging
 import random
 import time
 from typing import Optional
+from contextlib import suppress
 
 from aiogram import Bot
 from aiogram.types import Message, ReactionTypeEmoji
 from pydantic import BaseModel
 from elevenlabs.client import AsyncElevenLabs
+from aiogram.exceptions import TelegramBadRequest
+
 
 from tgbot.services.ai_service.tts import generate_tts
 from tgbot.services.token_usage import TokenUsageManager
@@ -62,6 +65,7 @@ class AIConversation(TokenUsageManager):
         notification: Optional[str] = None,
         apply_formatting: bool = True,
         with_tts: bool = False,
+        keyboard=None,
     ) -> AIResponse | None:
         if not self.message_handler.get_messages():
             await sent_message.edit_text(
@@ -81,6 +85,7 @@ class AIConversation(TokenUsageManager):
             f"{notification}\n\n{final_text}",
             parse_mode="HTML",
             disable_web_page_preview=True,
+            reply_markup=keyboard,
         )
         logging.info(f"AI: {final_text}")
         await message.react(reaction=[ReactionTypeEmoji(emoji="👨‍💻")], is_big=True)
@@ -103,11 +108,12 @@ class AIConversation(TokenUsageManager):
             if time.time() - last_time > 5:
                 cont_symbol = random.choice(["▌", "█"])
                 formatted_text = telegram_format(text) if apply_formatting else text
-                await sent_message.edit_text(
-                    f"{notification}\n\n{formatted_text}{cont_symbol}",
-                    parse_mode="HTML",
-                    disable_web_page_preview=True,
-                )
+                with suppress(TelegramBadRequest):
+                    await sent_message.edit_text(
+                        f"{notification}\n\n{formatted_text}{cont_symbol}",
+                        parse_mode="HTML",
+                        disable_web_page_preview=True,
+                    )
                 last_time = time.time()
             if with_tts:
                 new_text = text[self.processed_text_length :]

@@ -27,6 +27,7 @@ from tgbot.services.ai_service.anthropic_provider import (
     AnthropicProvider,
 )
 from tgbot.services.ai_service.openai_provider import OpenAIProvider
+from tgbot.services.payments import payment_keyboard
 from tgbot.services.token_usage import Opus
 
 ai_router = Router()
@@ -464,7 +465,7 @@ async def ask_ai(
     usage_cost = await ai_conversation.calculate_cost(
         Opus, message.chat.id, message.from_user.id
     )
-    notification = await get_notification(usage_cost)
+    # notification = await get_notification(usage_cost)
 
     if reply_photo:
         logging.info("Adding reply message with photo")
@@ -501,11 +502,17 @@ async def ask_ai(
     )
 
     try:
+        if usage_cost > 2:
+            keyboard = await payment_keyboard(bot, usage_cost, message.chat.id)
+        else:
+            keyboard = None
+
         response = await ai_conversation.answer_with_ai(
             message=message,
             sent_message=sent_message,
-            notification=notification,
+            notification="",
             with_tts=ai_mode == "NASTY",
+            keyboard=keyboard,
         )
         if not response:
             return

@@ -8,6 +8,7 @@ from .edit_chat import groups_chat_edit_router
 from .moderate_chat import groups_moderate_router
 from .rating import groups_rating_router
 from .service_messages import service_message_router
+from .payments import payment_router
 
 group_router = Router()
 group_router.message.filter(F.chat.type.in_([ChatType.GROUP, ChatType.SUPERGROUP]))
@@ -22,4 +23,4 @@ group_router.include_routers(
 )
 
 
-__all__ = ["group_router", "groups_rating_router", "ai_router"]
+__all__ = ["group_router", "groups_rating_router", "ai_router", "payment_router"]

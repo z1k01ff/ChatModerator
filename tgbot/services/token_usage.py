@@ -72,3 +72,15 @@ class TokenUsageManager:
             + model_pricing.output_price * usage["output"]
         ) / 1_000_000
         return round(total_cost, 2)
+
+    async def reset_usage(self, group_id: int, user_id: int):
+        key = f"{group_id}_{user_id}"
+        storage_key = StorageKey(self.bot.id, group_id, group_id)
+
+        # Retrieve current state or initialize if absent
+        group_state: dict = await self.storage.get_data(storage_key)
+        group_state[key] = {"input": 0, "output": 0}
+
+        # Save updated state back to storage
+        await self.storage.set_data(storage_key, group_state)
+        logging.info(f"User {user_id} usage reset")

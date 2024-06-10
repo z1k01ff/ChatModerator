@@ -1,4 +1,4 @@
-aiogram~=3.4
+aiogram~=3.7
 environs~=9.0
 redis
 betterlogging
