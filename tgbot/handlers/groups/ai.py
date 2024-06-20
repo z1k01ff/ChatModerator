@@ -28,7 +28,7 @@ from tgbot.services.ai_service.anthropic_provider import (
 )
 from tgbot.services.ai_service.openai_provider import OpenAIProvider
 from tgbot.services.payments import payment_keyboard
-from tgbot.services.token_usage import Opus
+from tgbot.services.token_usage import Opus, Sonnet
 
 ai_router = Router()
 ai_router.message.filter(F.chat.id.in_({-1001415356906, 362089194}))
@@ -382,7 +382,7 @@ async def ask_ai(
             client=anthropic_client,
             model_name="claude-3-haiku-20240307"
             if rating < 300
-            else "claude-3-opus-20240229",
+            else "claude-3-5-sonnet-20240620",
         )
         if provider == "anthropic"
         else OpenAIProvider(
@@ -463,7 +463,7 @@ async def ask_ai(
         ),
     )
     usage_cost = await ai_conversation.calculate_cost(
-        Opus, message.chat.id, message.from_user.id
+        Sonnet, message.chat.id, message.from_user.id
     )
     # notification = await get_notification(usage_cost)
 

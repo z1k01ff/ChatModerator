@@ -28,7 +28,7 @@ class AnthropicMedia(AIMediaBase):
 
 class AnthropicProvider(AIProviderBase):
     def __init__(
-        self, client: AsyncAnthropic, model_name: str = "claude-3-opus-20240229"
+        self, client: AsyncAnthropic, model_name: str = "claude-3-5-sonnet-20240620"
     ):
         super().__init__(media_class=AnthropicMedia)
         self.client = client

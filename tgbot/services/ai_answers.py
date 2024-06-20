@@ -52,7 +52,7 @@ class AIConversation(TokenUsageManager):
         bot: Bot,
         messages: List[types.MessageParam] | None = None,
         max_tokens: int = 450,
-        model_name: str = "claude-3-opus-20240229",
+        model_name: str = "claude-3-5-sonnet-20240620",
         system_message: Optional[str] = None,
     ):
         super().__init__(storage, bot)
