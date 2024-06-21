@@ -32,7 +32,7 @@ from tgbot.services.ai_service.anthropic_provider import (
 )
 from tgbot.services.ai_service.openai_provider import OpenAIProvider
 from tgbot.services.payments import payment_keyboard
-from tgbot.services.token_usage import Opus, Sonnet
+from tgbot.services.token_usage import Sonnet
 
 ai_router = Router()
 ai_router.message.filter(F.chat.id.in_({-1001415356906, 362089194}))
@@ -570,19 +570,24 @@ async def turn_on_ai(message: types.Message, state: FSMContext):
 
 @ai_router.message(Command("nation"))
 @flags.rate_limit(limit=120, key="nationality")
-async def determine_nationality(message: types.Message,
-                                anthropic_client: AsyncAnthropic,
-                                bot: Bot, state: FSMContext):
+async def determine_nationality(
+    message: types.Message,
+    anthropic_client: AsyncAnthropic,
+    bot: Bot,
+    state: FSMContext,
+):
     # Get all the two-character language codes
-    language_codes = [country.alpha_2 for country in pycountry.countries if hasattr(country, 'alpha_2')]
+    language_codes = [
+        country.alpha_2
+        for country in pycountry.countries
+        if hasattr(country, "alpha_2")
+    ]
 
     # Select a random language code
     random_country_code = random.choice(language_codes)
-    ai_provider = (
-        AnthropicProvider(
-            client=anthropic_client,
-            model_name="claude-3-5-sonnet-20240620",
-        )
+    ai_provider = AnthropicProvider(
+        client=anthropic_client,
+        model_name="claude-3-5-sonnet-20240620",
     )
 
     target = (
@@ -591,18 +596,17 @@ async def determine_nationality(message: types.Message,
         else message.from_user.mention_markdown()
     )
 
-    sent_message = await message.reply(
-        "⏳"
-    )
+    sent_message = await message.reply("⏳")
     ai_conversation = AIConversation(
         bot=bot,
         ai_provider=ai_provider,
         storage=state.storage,
-        system_message=JOKE_NATION_MODE.format(country_code=random_country_code, 
-                                               full_name=target),
+        system_message=JOKE_NATION_MODE.format(
+            country_code=random_country_code, full_name=target
+        ),
         max_tokens=200,
     )
-    ai_conversation.add_user_message(text=message.reply_to_message.text if message.reply_to_message else "/nation")
+    ai_conversation.add_user_message(text="/nation")
 
     usage_cost = await ai_conversation.calculate_cost(
         Sonnet, message.chat.id, message.from_user.id
@@ -619,7 +623,7 @@ async def determine_nationality(message: types.Message,
             notification="",
             with_tts=False,
             keyboard=keyboard,
-            apply_formatting=True
+            apply_formatting=True,
         )
         if not response:
             return
@@ -635,6 +639,7 @@ async def determine_nationality(message: types.Message,
         await sent_message.edit_text(
             "An error occurred while processing the request. Please try again later."
         )
+
 
 # command to handle /provider openai; /provider anthropic
 @ai_router.message(Command("provider"))

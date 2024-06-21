@@ -74,4 +74,5 @@ JOKE_NATION_MODE = """
 Country code: {country_code}
 Full name: {full_name}
 Consider the full_name to determine the gender and use the appropriate form of the words.
+Don't forget to place the md link to the person (in full name)
 """
