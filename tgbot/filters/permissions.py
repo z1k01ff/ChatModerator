@@ -2,7 +2,7 @@ import typing
 from dataclasses import dataclass
 
 from aiogram import types
-from aiogram.enums import ChatMemberStatus
+from aiogram.enums import ChatMemberStatus, ChatType
 from aiogram.filters import BaseFilter
 from aiogram.types import ChatMemberAdministrator
 
@@ -22,6 +22,9 @@ class HasPermissionsFilter(BaseFilter):
     async def __call__(self, message: types.Message) -> bool | dict | None:
         chat_id = message.chat.id
         user_id = message.from_user.id
+
+        if message.chat.type == ChatType.PRIVATE:
+            return False
 
         if chat_id not in self.CHAT_ADMINS:
             self.CHAT_ADMINS[chat_id] = await message.chat.get_administrators()

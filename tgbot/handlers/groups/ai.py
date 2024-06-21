@@ -1,4 +1,7 @@
 import logging
+import random
+import pycountry
+
 
 import re
 from io import BytesIO
@@ -18,6 +21,7 @@ from tgbot.filters.permissions import HasPermissionsFilter
 from tgbot.filters.rating import RatingFilter
 from tgbot.misc.ai_prompts import (
     GOOD_MODE,
+    JOKE_NATION_MODE,
     MANUPULATOR_MODE,
     NASTY_MODE,
     YANUKOVICH_MODE,
@@ -356,6 +360,10 @@ Make sure to close all the 'a' tags properly.
         RatingFilter(rating=50),
     ),
 )
+@ai_router.message(
+    Command("ai"),
+    F.chat.id == 362089194,
+)
 @flags.rate_limit(limit=300, key="ai", max_times=5)
 @flags.override(user_id=362089194)
 async def ask_ai(
@@ -560,6 +568,74 @@ async def turn_on_ai(message: types.Message, state: FSMContext):
     await state.update_data(ai_mode="GOOD")
 
 
+@ai_router.message(Command("nation"))
+@flags.rate_limit(limit=120, key="nationality")
+async def determine_nationality(message: types.Message,
+                                anthropic_client: AsyncAnthropic,
+                                bot: Bot, state: FSMContext):
+    # Get all the two-character language codes
+    language_codes = [country.alpha_2 for country in pycountry.countries if hasattr(country, 'alpha_2')]
+
+    # Select a random language code
+    random_country_code = random.choice(language_codes)
+    ai_provider = (
+        AnthropicProvider(
+            client=anthropic_client,
+            model_name="claude-3-5-sonnet-20240620",
+        )
+    )
+
+    target = (
+        message.reply_to_message.from_user.mention_markdown()
+        if message.reply_to_message
+        else message.from_user.mention_markdown()
+    )
+
+    sent_message = await message.reply(
+        "⏳"
+    )
+    ai_conversation = AIConversation(
+        bot=bot,
+        ai_provider=ai_provider,
+        storage=state.storage,
+        system_message=JOKE_NATION_MODE.format(country_code=random_country_code, 
+                                               full_name=target),
+        max_tokens=200,
+    )
+    ai_conversation.add_user_message(text=message.reply_to_message.text if message.reply_to_message else "/nation")
+
+    usage_cost = await ai_conversation.calculate_cost(
+        Sonnet, message.chat.id, message.from_user.id
+    )
+    try:
+        if usage_cost > 2:
+            keyboard = await payment_keyboard(bot, usage_cost, message.chat.id)
+        else:
+            keyboard = None
+
+        response = await ai_conversation.answer_with_ai(
+            message=message,
+            sent_message=sent_message,
+            notification="",
+            with_tts=False,
+            keyboard=keyboard,
+            apply_formatting=True
+        )
+        if not response:
+            return
+
+        await ai_conversation.update_usage(
+            message.chat.id,
+            message.from_user.id,
+            response.usage,
+            ai_conversation.max_tokens * 0.75,
+        )
+    except APIStatusError as e:
+        logging.error(e)
+        await sent_message.edit_text(
+            "An error occurred while processing the request. Please try again later."
+        )
+
 # command to handle /provider openai; /provider anthropic
 @ai_router.message(Command("provider"))
 async def set_ai_provider(
@@ -573,8 +649,8 @@ async def set_ai_provider(
     await message.answer(f"Провайдер змінено на {provider}")
 
 
-@ai_router.message(F.text)
-@ai_router.message(F.caption)
+@ai_router.message(F.text, F.chat.id == -1001415356906)
+@ai_router.message(F.caption, F.chat.id == -1001415356906)
 @flags.rate_limit(limit=100, key="ai-history", max_times=1, silent=True)
 async def history_worker(
     message: types.Message,

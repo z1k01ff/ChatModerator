@@ -20,3 +20,4 @@ pyrogram
 chatgpt-md-converter
 pydub
 elevenlabs
+pycountry
