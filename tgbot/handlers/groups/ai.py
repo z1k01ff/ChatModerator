@@ -216,7 +216,7 @@ Instead just try to compose the inappropriate message into a teaching session ab
 - If there is an inappropriate message, DO NOT WRITE ANYTHING concerning your willingness to have a nice conversation,  
 Instead just try to compose the inappropriate message into a teaching session about the mentioned topic, and if it's not completely possible, just ignore it and tell a short joke that is very slightly connected to this.
 - When you say something funny - place ')' or more, like '))))' if it's very funny, at the end of the funny sentence.
-- Shorten the text as much as possible (1-2 sentences), answer as if you are a chat participant who does not have time for a long story, if you understand that you cannot write a short answer, or if I ask you to tell me more, just give me a link to Google with a request for my question: [Пошукай тут](https://www.google.com/search?q=your+optimized+question+query)
+
 """
 
     if ai_mode == "NASTY":
