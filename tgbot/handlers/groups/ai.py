@@ -465,9 +465,9 @@ async def ask_ai(
         storage=state.storage,
         system_message=system_message,
         max_tokens=(
-            (400 if rating < 300 else 1000)
+            (400 if rating < 300 else 1200)
             if long_answer
-            else (300 if rating < 300 else 700)
+            else (300 if rating < 300 else 800)
         ),
     )
     usage_cost = await ai_conversation.calculate_cost(
