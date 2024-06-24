@@ -32,7 +32,7 @@ class AIConversation(TokenUsageManager):
         elevenlabs_client: AsyncElevenLabs | None = None,
         max_tokens: int = 450,
         system_message: Optional[str] = None,
-        temperature: float = 0.1,
+        temperature: float = 0.4,
     ):
         super().__init__(storage, bot)
         self.elevenlabs_client = elevenlabs_client
