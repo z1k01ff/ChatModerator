@@ -35,6 +35,7 @@ class OpenAIProvider(AIProviderBase):
         messages: List[dict],
         max_tokens: int,
         system_message: Optional[str] = None,
+        temperature: float = 0.1,
     ) -> AsyncGenerator[str, None]:
         if system_message:
             messages.insert(0, {"role": "system", "content": system_message})
@@ -44,6 +45,7 @@ class OpenAIProvider(AIProviderBase):
             messages=messages,
             stream=True,
             max_tokens=max_tokens,
+            temperature=temperature,
         )
 
         async for chunk in chat_completion:

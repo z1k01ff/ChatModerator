@@ -39,6 +39,7 @@ class AnthropicProvider(AIProviderBase):
         messages: List[dict],
         max_tokens: int,
         system_message: Optional[str] = None,
+        temperature: float = 0.1,
     ) -> AsyncGenerator[str, None]:
         formatted_messages = [
             anthropic_types.MessageParam(role=msg["role"], content=msg["content"])
@@ -50,6 +51,7 @@ class AnthropicProvider(AIProviderBase):
             model=self.model_name,
             messages=formatted_messages,
             system=system_message,
+            temperature=temperature,
         ) as stream:
             async for partial_text in stream.text_stream:
                 yield partial_text

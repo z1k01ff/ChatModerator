@@ -28,5 +28,6 @@ class AIProviderBase(ABC):
         messages: List[dict],
         max_tokens: int,
         system_message: Optional[str] = None,
+        temperature: float = 0.1,
     ) -> AsyncGenerator[str, None]:
         raise NotImplementedError("This method should be overridden by subclasses")
