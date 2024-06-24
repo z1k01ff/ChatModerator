@@ -598,7 +598,7 @@ async def determine_nationality(
         else message.from_user.mention_markdown()
     )
 
-    sent_message = await message.reply("⏳")
+    sent_message = await message.reply("⏳ Аналізую національність...")
     ai_conversation = AIConversation(
         bot=bot,
         ai_provider=ai_provider,
@@ -664,7 +664,7 @@ async def determine_orientation(
         else message.from_user.mention_markdown()
     )
 
-    sent_message = await message.reply("⏳")
+    sent_message = await message.reply("⏳ Визначаю ідентичність...")
     identity_code = random.choice(IDENTITIES)
     ai_conversation = AIConversation(
         bot=bot,

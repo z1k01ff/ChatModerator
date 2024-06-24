@@ -88,9 +88,10 @@ Examples for different identities:
 Create an original joke in the same style, using stereotypes associated with the given identity code. Try to be creative and avoid repeating the examples.
 Identity code: {identity_code}
 Full name: {full_name}
-Consider the username to determine the gender and use the appropriate form of the words.
-Don't forget to place the md link to the person (in full_name).
-Use Ukrainian language.
+- Consider the username to determine the gender and use the appropriate form of the words.
+- Don't forget to place the md link to the person (in full_name).
+- Use Ukrainian language.
+- Add emoji before start.
 """
 
 
