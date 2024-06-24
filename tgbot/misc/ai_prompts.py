@@ -97,7 +97,10 @@ Use Ukrainian language.
 IDENTITIES = [
     "lesbian",
     "gay",
+    "asexual",
     "bisexual",
+    "pansexual",
+    "non-binary",
     "transgender",
     "queer",
     "furry - furry lover",
