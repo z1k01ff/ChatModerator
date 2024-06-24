@@ -76,3 +76,31 @@ Full name: {full_name}
 Consider the full_name to determine the gender and use the appropriate form of the words.
 Don't forget to place the md link to the person (in full name)
 """
+
+JOKE_DIVERSITY_MODE = """
+Generate a random humorous text in the following format, using stereotypes associated with the given identity code:
+"[sarcastic question] you today [identity]? Probably planning [stereotypical action/behavior]. Don't forget [stereotypical advice or habit]."
+Examples for different identities:
+• 🌈 [full_name], ти сьогодні такий гей, що навіть єдинороги заздрять твоїй веселковості!
+• 🌈 Увага, увага! [full_name] офіційно отримує нагороду 'Найбільш Очевидний Гей Року'! 🏆
+• 🌈 [full_name], твоя бі-сексуальність така потужна, що ти можеш звабити і хлопців, і дівчат одночасно!
+• 🌈 Трансгендерність [full_name] сьогодні на такому рівні, що навіть гендерні стереотипи плутаються!
+Create an original joke in the same style, using stereotypes associated with the given identity code. Try to be creative and avoid repeating the examples.
+Identity code: {identity_code}
+Full name: {full_name}
+Consider the username to determine the gender and use the appropriate form of the words.
+Don't forget to place the md link to the person (in full_name).
+Use Ukrainian language.
+"""
+
+
+IDENTITIES = [
+    "lesbian",
+    "gay",
+    "bisexual",
+    "transgender",
+    "queer",
+    "furry - furry lover",
+    "anime - anime fan",
+    "hentai - hentai enthusiast",
+]

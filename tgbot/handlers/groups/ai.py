@@ -21,6 +21,8 @@ from tgbot.filters.permissions import HasPermissionsFilter
 from tgbot.filters.rating import RatingFilter
 from tgbot.misc.ai_prompts import (
     GOOD_MODE,
+    IDENTITIES,
+    JOKE_DIVERSITY_MODE,
     JOKE_NATION_MODE,
     MANUPULATOR_MODE,
     NASTY_MODE,
@@ -605,8 +607,76 @@ async def determine_nationality(
             country_code=random_country_code, full_name=target
         ),
         max_tokens=200,
+        temperature=0.8,
     )
     ai_conversation.add_user_message(text="/nation")
+
+    usage_cost = await ai_conversation.calculate_cost(
+        Sonnet, message.chat.id, message.from_user.id
+    )
+    try:
+        if usage_cost > 2:
+            keyboard = await payment_keyboard(bot, usage_cost, message.chat.id)
+        else:
+            keyboard = None
+
+        response = await ai_conversation.answer_with_ai(
+            message=message,
+            sent_message=sent_message,
+            notification="",
+            with_tts=False,
+            keyboard=keyboard,
+            apply_formatting=True,
+        )
+        if not response:
+            return
+
+        await ai_conversation.update_usage(
+            message.chat.id,
+            message.from_user.id,
+            response.usage,
+            ai_conversation.max_tokens * 0.75,
+        )
+    except APIStatusError as e:
+        logging.error(e)
+        await sent_message.edit_text(
+            "An error occurred while processing the request. Please try again later."
+        )
+
+
+@ai_router.message(Command("gay"))
+@flags.rate_limit(limit=120, key="gay")
+@flags.override(user_id=362089194)
+async def determine_orientation(
+    message: types.Message,
+    anthropic_client: AsyncAnthropic,
+    bot: Bot,
+    state: FSMContext,
+):
+    ai_provider = AnthropicProvider(
+        client=anthropic_client,
+        model_name="claude-3-5-sonnet-20240620",
+    )
+
+    target = (
+        message.reply_to_message.from_user.mention_markdown()
+        if message.reply_to_message
+        else message.from_user.mention_markdown()
+    )
+
+    sent_message = await message.reply("⏳")
+    identity_code = random.choice(IDENTITIES)
+    ai_conversation = AIConversation(
+        bot=bot,
+        ai_provider=ai_provider,
+        storage=state.storage,
+        system_message=JOKE_DIVERSITY_MODE.format(
+            identity_code=identity_code, full_name=target
+        ),
+        max_tokens=200,
+        temperature=0.8,
+    )
+    ai_conversation.add_user_message(text="/identity")
 
     usage_cost = await ai_conversation.calculate_cost(
         Sonnet, message.chat.id, message.from_user.id
