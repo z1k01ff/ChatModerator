@@ -17,8 +17,8 @@ class ChatAdmins(Base):
     """
     Represents chat administrators in the application.
     """
-    chat_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    admin_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    admin_id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
 
     def __repr__(self):
         return f"<ChatAdmins chat_id={self.chat_id} admin_id={self.admin_id}>"

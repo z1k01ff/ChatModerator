@@ -21,3 +21,6 @@ chatgpt-md-converter
 pydub
 elevenlabs
 pycountry
+fastapi
+uvicorn
+asyncpg

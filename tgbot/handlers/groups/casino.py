@@ -1,13 +1,11 @@
 import asyncio
-from contextlib import suppress
 
-from aiogram import Bot, F, Router, types, flags
-from aiogram.filters import Command, CommandObject
-from aiogram.types import User
+from aiogram import Router, types
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, User
 
 from infrastructure.database.repo.requests import RequestsRepo
-from tgbot.filters.rating import RatingFilter
-from tgbot.services.broadcaster import send_message, send_telegram_action
+from tgbot.services.broadcaster import send_message
 
 groups_casino_router = Router()
 
@@ -79,35 +77,21 @@ async def process_dice_roll(
 
 
 # Command handler for rolling the dice
-@groups_casino_router.message(
-    Command("casino", magic=F.args.regexp(r"(\d+)")), RatingFilter(rating=50)
-)
-@groups_casino_router.message(Command("casino", magic=~F.args), RatingFilter(rating=50))
-@flags.rate_limit(limit=1 * HOURS, key="casino", max_times=3)
+@groups_casino_router.message(Command("casino"))
 async def roll_dice_command(
     message: types.Message,
-    bot: Bot,
-    repo: RequestsRepo,
-    command: CommandObject,
 ):
-    # sent_message = await bot.send_dice(message.chat.id, emoji="🎰")
-    sent_message = await send_telegram_action(
-        bot.send_dice,
-        chat_id=message.chat.id,
-        emoji="🎰",
-        reply_to_message_id=message.message_id,
+    await message.reply(
+        text="Казино доступно тут: ",
+        disable_web_page_preview=False,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🎰 Зіграти!",
+                        url="https://t.me/Latandbot/casino",
+                    )
+                ]
+            ]
+        ),
     )
-    if not sent_message:
-        return
-
-    try:
-        rating_bet = abs(min(int(command.args) if command.args else 1, MAX_CASINO_BET))
-    except ValueError:
-        rating_bet = 1
-
-    await process_dice_roll(
-        message=sent_message, user=message.from_user, rating_bet=rating_bet, repo=repo
-    )
-
-    with suppress(Exception):
-        await message.delete()

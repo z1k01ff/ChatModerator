@@ -12,7 +12,6 @@ import httpx
 from openai import AsyncOpenAI
 from pyrogram import Client
 
-from infrastructure.database.repo.requests import Database
 from infrastructure.database.setup import create_engine, create_session_pool
 from tgbot.config import Config, load_config
 from tgbot.handlers.essential.fun import fun_router
@@ -132,8 +131,7 @@ async def main():
     bot = Bot(
         token=config.tg_bot.token, default=DefaultBotProperties(parse_mode="HTML")
     )
-    engine = create_engine("main.db")
-    db = Database(engine)
+    engine = create_engine(config.db.construct_sqlalchemy_url())
     client = Client(
         name="bot",
         bot_token=config.tg_bot.token,
@@ -142,7 +140,6 @@ async def main():
         no_updates=True,  # We don't need to handle incoming updates by client
     )
     dp = Dispatcher(storage=storage, client=client, fsm_strategy=FSMStrategy.CHAT)
-    await db.create_tables()
     session_pool = create_session_pool(engine)
     ratings_cache = {}
     openai_client = AsyncOpenAI(api_key=config.openai.api_key)
