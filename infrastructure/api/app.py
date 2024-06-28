@@ -66,7 +66,7 @@ async def update_user_balance(
 
 # Game logic
 SYMBOLS = ["🍋", "🍒", "🍇", "🎰", "7️⃣"]
-WEIGHTS = [50, 50, 30, 15, 5]
+WEIGHTS = [70, 55, 50, 10, 3]
 
 
 def get_random_symbol():
@@ -80,9 +80,9 @@ def calculate_winnings(result: List[str], stake: int) -> int:
         multiplier = {
             "7️⃣": 1500,
             "🎰": 500,
-            "🍇": 30,
-            "🍒": 10,
-            "🍋": 2,
+            "🍇": 18,
+            "🍒": 12,
+            "🍋": 4,
         }.get(symbol, 0)
         return stake * multiplier
     return 0
