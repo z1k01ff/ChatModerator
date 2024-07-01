@@ -1,3 +1,4 @@
+from contextlib import suppress
 import json
 import logging
 from aiogram import Bot
@@ -81,8 +82,8 @@ def calculate_winnings(result: List[str], stake: int) -> int:
             "7️⃣": 1500,
             "🎰": 500,
             "🍇": 18,
-            "🍒": 12,
-            "🍋": 4,
+            "🍒": 13,
+            "🍋": 5,
         }.get(symbol, 0)
         return stake * multiplier
     return 0
@@ -120,7 +121,12 @@ async def spin(request: SpinRequest):
         await update_user_balance(request.user_id, newBalance, repo)
 
         data = parse_init_data(request.InitData)
-        if action == "win" and "🍋" not in result and "🍒" not in result:
+        if (
+            action == "win"
+            # and "🍋" not in result
+            # and "🍒" not in result
+            # and "🍇" not in result
+        ):
             try:
                 user = data.get("user")
                 user = json.loads(user)
@@ -132,21 +138,22 @@ async def spin(request: SpinRequest):
                 )
                 prize = " ".join(result)
                 success_message = f"Користувач {name_with_mention} вибив {prize} і отримав {winAmount} рейтингу, тепер у нього {newBalance} рейтингу.\nВітаємо!"
-                await bot.send_message(
-                    chat_id=-1001415356906,
-                    text=success_message,
-                    parse_mode="HTML",
-                    reply_markup=InlineKeyboardMarkup(
-                        inline_keyboard=[
-                            [
-                                InlineKeyboardButton(
-                                    text="🎰 Зіграти теж!",
-                                    url="https://t.me/Latandbot/casino",
-                                )
+                with suppress(Exception):
+                    await bot.send_message(
+                        chat_id=request.user_id,
+                        text=success_message,
+                        parse_mode="HTML",
+                        reply_markup=InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [
+                                    InlineKeyboardButton(
+                                        text="🎰 Зіграти теж!",
+                                        url="https://t.me/Latandbot/casino",
+                                    )
+                                ]
                             ]
-                        ]
-                    ),
-                )
+                        ),
+                    )
             except Exception as e:
                 logging.error(f"Error sending message: {e}")
 
