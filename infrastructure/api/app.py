@@ -79,11 +79,11 @@ def calculate_winnings(result: List[str], stake: int) -> int:
         symbol = result[0]
 
         multiplier = {
-            "7️⃣": 1500,
-            "🎰": 500,
-            "🍇": 18,
-            "🍒": 13,
-            "🍋": 5,
+            "7️⃣": 1000,
+            "🎰": 200,
+            "🍇": 30,
+            "🍒": 15,
+            "🍋": 10,
         }.get(symbol, 0)
         return stake * multiplier
     return 0
@@ -153,6 +153,7 @@ async def spin(request: SpinRequest):
                                 ]
                             ]
                         ),
+                        disable_notification=True,
                     )
             except Exception as e:
                 logging.error(f"Error sending message: {e}")
