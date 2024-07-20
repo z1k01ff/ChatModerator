@@ -1,6 +1,5 @@
 from io import BytesIO
-from typing import AsyncGenerator, List, Optional
-
+from typing import AsyncGenerator, List, Optional, Type
 from abc import ABC, abstractmethod
 
 
@@ -19,7 +18,7 @@ class AIMediaBase(ABC):
 
 
 class AIProviderBase(ABC):
-    def __init__(self, media_class: AIMediaBase):
+    def __init__(self, media_class: Type[AIMediaBase]):
         self.media_class = media_class
 
     @abstractmethod

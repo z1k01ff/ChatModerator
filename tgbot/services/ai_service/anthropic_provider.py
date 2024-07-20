@@ -1,8 +1,6 @@
 import base64
 from typing import AsyncGenerator, List, Optional
-
 from anthropic import AsyncAnthropic, types as anthropic_types
-
 from tgbot.services.ai_service.base_provider import AIMediaBase, AIProviderBase
 
 
@@ -45,7 +43,6 @@ class AnthropicProvider(AIProviderBase):
             anthropic_types.MessageParam(role=msg["role"], content=msg["content"])
             for msg in messages
         ]
-
         async with self.client.messages.stream(
             max_tokens=max_tokens,
             model=self.model_name,

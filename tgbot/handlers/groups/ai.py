@@ -1,3 +1,5 @@
+from collections import deque
+import json
 import logging
 import random
 from emoji import EMOJI_DATA
@@ -6,7 +8,7 @@ import pycountry
 
 import re
 from io import BytesIO
-from typing import Literal
+from typing import Literal, Optional, Union
 
 from aiogram import Bot, F, Router, flags, types
 from aiogram.filters import Command, CommandObject, or_f
@@ -15,8 +17,7 @@ from aiogram.utils.markdown import hlink
 from anthropic import APIStatusError, AsyncAnthropic
 from openai import AsyncOpenAI
 from elevenlabs.client import AsyncElevenLabs
-from pyrogram import Client, errors
-from pyrogram.types import Message as PyrogramMessage
+from pyrogram.client import Client
 
 from tgbot.filters.permissions import HasPermissionsFilter
 from tgbot.filters.rating import RatingFilter
@@ -37,6 +38,10 @@ from tgbot.services.ai_service.anthropic_provider import (
 from tgbot.services.ai_service.openai_provider import OpenAIProvider
 from tgbot.services.payments import payment_keyboard
 from tgbot.services.token_usage import Sonnet
+from pyrogram.types import Message as PyrogramMessage
+import pyrogram.errors
+
+from aiogram.utils.text_decorations import html_decoration as hd
 
 ai_router = Router()
 ai_router.message.filter(F.chat.id.in_({-1001415356906, 362089194}))
@@ -64,15 +69,15 @@ def extract_reply_person(message: types.Message, assistant_message: str | None) 
     if reply := message.reply_to_message:
         reply: types.Message
         if reply.forward_from_chat:
-            return reply.forward_from_chat.title
+            return reply.forward_from_chat.title or "Unknown Channel"
         if reply.forward_from:
             return reply.forward_from.full_name
         if reply.forward_sender_name:
             return reply.forward_sender_name
         if reply.from_user:
             return reply.from_user.full_name
-
-    return "Noone"
+    if message:
+        return message.from_user.full_name
 
 
 def parse_multiple_command(command: CommandObject | None) -> tuple[int, str]:
@@ -85,12 +90,114 @@ def parse_multiple_command(command: CommandObject | None) -> tuple[int, str]:
     return 0, ""
 
 
-async def get_messages_history(
+def format_message(msg: Union[dict, PyrogramMessage]) -> str:
+    if isinstance(msg, dict):
+        return f"""<time>{msg['date']}</time><user>{msg['user']}</user>:<message>{msg['content']}</message><message_url>{msg['url']}</message_url>"""
+    else:
+        date = msg.date.strftime("%Y-%m-%d %H:%M")
+        user = (
+            f"{msg.from_user.first_name or ''}{msg.from_user.last_name or ''}"
+            if msg.from_user
+            else "unknown"
+        )
+        content = msg.text or msg.caption or ""
+        return f"""<time>{date}</time><user>{user}</user>:<message>{content}</message><message_url>{msg.link}</message_url>"""
+
+
+def should_include_message(msg: Union[dict, PyrogramMessage], with_bot: bool) -> bool:
+    if isinstance(msg, dict):
+        return bool(msg["content"])
+    else:
+        has_content = bool(msg.text or msg.caption)
+        is_not_assistant = (
+            msg.from_user and msg.from_user.id != ASSISTANT_ID if not with_bot else True
+        )
+        return has_content and is_not_assistant
+
+
+def format_messages_history(
+    messages: list[Union[dict, PyrogramMessage]],
+    with_bot: bool = True,
+    limit: int = 2048,
+) -> str:
+    formatted_messages = [
+        format_message(msg) for msg in messages if should_include_message(msg, with_bot)
+    ]
+
+    message_history = "\n".join(formatted_messages)
+    return message_history[:limit]
+
+
+async def summarize_and_update_history(
+    message: types.Message,
+    state: FSMContext,
+    bot: Bot,
+    ai_client: AsyncOpenAI,
+    with_bot: bool = True,
+    notification: str = "",
+) -> None:
+    state_data = await state.get_data()
+    messages_history = state_data.get("messages_history", [])
+
+    if not messages_history:
+        await message.answer("No messages found for analysis.")
+        return
+
+    formatted_history = format_messages_history(
+        json.loads(messages_history), with_bot=with_bot
+    )
+
+    ai_conversation = AIConversation(
+        bot=bot,
+        storage=state.storage,
+        ai_provider=OpenAIProvider(
+            client=ai_client,
+            model_name="gpt-4o-mini",
+        ),
+        system_message="""You're a professional summarizer of conversation. You take all messages at determine the most important topics in the conversation.
+List all discussed topics in the history as a list of bullet points.
+Use Ukrainian language. Tell the datetime period of the earliest message (e.g. 2022-03-07 12:00).
+Format each bullet point as follows:
+- <a href='{earliest message url}}'>{TOPIC}</a>
+The url should be as it is, and point to the earliest message of the sumarized topic.
+Make sure to close all the 'a' tags properly.
+<important_rules>
+- DO NOT WRITE MESSAGES VERBATIM, JUST SUMMARIZE THEM.
+- List not between 10 and 35 topics.
+- The topic descriptions should be distinct and descriptive.
+- The topic should contain at least 3 messages and be not verbatim text of the message.
+- Write every topic with an emoji that describes the topic.
+- Include names of the users that were discussing the topic.
+- Do not just copy all topics from the previous #history message, include new missing ones. Probably fix mistakes from the previous message.
+</important_rule>
+""",
+        max_tokens=2000,
+    )
+    ai_conversation.add_user_message(
+        text=f"Summarize the chat history\n{formatted_history}"
+    )
+
+    sent_message = await message.answer("⏳", reply_to_message_id=message.message_id)
+
+    try:
+        await ai_conversation.answer_with_ai(
+            message,
+            sent_message,
+            notification=notification,
+            apply_formatting=False,
+        )
+    except Exception as e:
+        logging.error(f"Error in summarize_and_update_history: {e}")
+        await sent_message.edit_text(
+            "An error occurred while processing the request. Please try again later."
+        )
+
+
+async def get_pyrogram_messages_history(
     client: Client,
     start_message_id: int,
     chat_id: int,
     num_messages: int | None = None,
-    limit: int = 2048,
     chained_replies: bool = False,
     with_bot: bool = True,
 ) -> str:
@@ -100,12 +207,11 @@ async def get_messages_history(
     messages: list[PyrogramMessage] = []
     if chained_replies:
         try:
-            previous_message = await client.get_messages(
+            previous_message: PyrogramMessage = await client.get_messages(
                 chat_id=chat_id, reply_to_message_ids=start_message_id
             )
-        except errors.exceptions.bad_request_400.MessageIdsEmpty:
+        except pyrogram.errors.exceptions.bad_request_400.MessageIdsEmpty:
             return ""
-
         if previous_message:
             messages.append(previous_message)
             if previous_message.reply_to_message:
@@ -130,30 +236,97 @@ async def get_messages_history(
             batch_messages = await client.get_messages(
                 chat_id=chat_id, message_ids=batch_message_ids
             )
-            messages.extend(batch_messages)
+            if isinstance(batch_messages, PyrogramMessage):
+                messages.append(batch_messages)
+
+            elif isinstance(batch_messages, list):
+                messages.extend(batch_messages)
 
     logging.info(f"Got {len(messages)} messages")
-    message_history = "\n".join(
+    return format_messages_history(messages, with_bot)
+
+
+async def get_initial_messages(
+    client: Client, chat_id: int, message_id: int
+) -> list[dict]:
+    messages = []
+    history = await client.get_messages(
+        chat_id, message_ids=list(range(message_id - 200, message_id - 1))
+    )
+    if not history:
+        return []
+
+    if isinstance(history, PyrogramMessage):
+        history = [history]
+
+    for msg in history:
+        if not msg.text and not msg.caption:
+            continue
+
+        messages.append(
+            {
+                "date": msg.date.isoformat(),
+                "user": hd.quote(
+                    msg.from_user.first_name if msg.from_user else "Unknown"
+                ),
+                "content": hd.quote(msg.text or msg.caption or ""),
+                "url": msg.link,
+                "reply_to_id": msg.reply_to_message.id
+                if msg.reply_to_message
+                else None,
+                "message_id": msg.id,
+            }
+        )
+    return list(reversed(messages))  # Reverse to get chronological order
+
+
+async def get_messages_history(
+    state: FSMContext,
+    start_message_id: int,
+    num_messages: Optional[int] = None,
+    limit: int = 2048,
+    chained_replies: bool = False,
+    with_bot: bool = True,
+) -> str:
+    state_data = await state.get_data()
+    messages_history = state_data.get("messages_history", None)
+
+    if not messages_history:
+        return ""
+
+    messages_history = deque(json.loads(messages_history), maxlen=400)
+
+    if chained_replies:
+        # Find the message with start_message_id and its reply chain
+        chain = []
+        for msg in reversed(messages_history):
+            if msg["message_id"] == start_message_id or (
+                chain and msg["message_id"] == chain[-1]["reply_to_id"]
+            ):
+                chain.append(msg)
+
+            if len(chain) >= 4:
+                break
+
+        formatted_messages = list(reversed(chain))
+
+    elif num_messages:
+        # Get the last num_messages
+        formatted_messages = list(messages_history)[-num_messages:]
+
+    else:
+        return ""
+
+    # Format messages
+    formatted_history = "\n".join(
         [
-            f"""<time>{added_message.date.strftime(
-                '%Y-%m-%d %H:%M'
-            )}</time><user>{(added_message.from_user.first_name or '') if added_message.from_user else 'unknown'}"""
-            f"{(added_message.from_user.last_name or '') if added_message.from_user else ''}"
-            f"</user>:<message>{added_message.text or added_message.caption}</message><message_url>{added_message.link}</message_url>"
-            for added_message in messages
-            if (added_message.text or added_message.caption)
-            and (
-                with_bot
-                or (
-                    not with_bot and added_message.from_user.id != ASSISTANT_ID
-                    if added_message.from_user
-                    else True
-                )
-            )
+            f"<time>{msg['date']}</time><user>{msg['user']}</user>:<message>{msg['content']}</message><message_url>{msg['url']}</message_url>"
+            for msg in formatted_messages
+            if with_bot or (not with_bot and not msg["user"].endswith("(assistant)"))
         ]
     )
-    logging.info(f"Message history: {message_history[:limit]}")
-    return message_history[:limit]
+
+    return formatted_history[:limit]
 
 
 def get_system_message(
@@ -244,92 +417,15 @@ async def get_notification(usage_cost: float) -> str:
 @ai_router.message(Command("history"), RatingFilter(rating=600))
 @flags.rate_limit(limit=600, key="history", max_times=1, chat=True)
 @flags.override(user_id=362089194)
-async def summarize_chat_history(
+async def command_summarize_chat_history(
     message: types.Message,
-    client: Client,
     state: FSMContext,
     bot: Bot,
-    anthropic_client: AsyncAnthropic,
     openai_client: AsyncOpenAI,
-    with_reply: bool = False,
-    with_bot: bool = True,
 ):
-    sent_message = await message.answer(
-        "⏳", reply_to_message_id=message.message_id if with_reply else None
+    await summarize_and_update_history(
+        message, state, bot, openai_client, with_bot=True, notification="#history"
     )
-    messages_history = await get_messages_history(
-        client, message.message_id, message.chat.id, -200, 200_000, with_bot=with_bot
-    )
-    if not messages_history:
-        return await message.answer("Не знайдено повідомлень для аналізу.")
-
-    ai_conversation = AIConversation(
-        bot=bot,
-        storage=state.storage,
-        # ai_provider=AnthropicProvider(
-        # client=anthropic_client,
-        # model_name="claude-3-haiku-20240307",
-        # ),
-        ai_provider=OpenAIProvider(
-            client=openai_client,
-            model_name="gpt-4o-mini",
-        ),
-        system_message="""You're a professional summarizer of conversation. You take all messages at determine the most important topics in the conversation.
-List all discussed topics in the history as a list of bullet points.
-Use Ukrainian language. Tell the datetime period of the earliest message (e.g. 2022-03-07 12:00).
-Format each bullet point as follows:
-• <a href='{earliest message url}}'>{TOPIC}</a>
-The url should be as it is, and point to the earliest message of the sumarized topic.
-Make sure to close all the 'a' tags properly.
-<important_rules>
-- DO NOT WRITE MESSAGES VERBATIM, JUST SUMMARIZE THEM.
-- List not between 10 and 35 topics.
-- The topic descriptions should be distinct and descriptive.
-- The topic should contain at least 3 messages and be not verbatim text of the message.
-- Write every topic with an emoji that describes the topic.
-- Include names of the users that were discussing the topic.
-- Do not just copy all topics from the previous #history message, include new missing ones. Probably fix mistakes from the previous message.
-</important_rule>
-<example_input>
-<time>2024-03-15 10:05</time><user>Alex Smith</user>:<message>Hey, does anyone know how we can request the history of this chat? I need it for our monthly review.</message><message_url>https://t.me/bot_devs_novice/914528</message_url>
-<time>2024-03-15 10:06</time><user>Maria Jones</user>:<message>@Alex Sith, I think you can use the chat history request feature in the settings. Just found a link about it.</message><message_url>https://t.me/bot_devs_novice/914529</message_url>
-<time>2024-03-15 10:08</time><user>John Doe</user>:<message>Correct, @Maria Jones. Also, ensure that you have the admin rights to do so. Sometimes permissions can be tricky.</message><message_url>https://t.me/bot_devs_novice/914530</message_url>
-<time>2024-03-15 11:00</time><user>Emily Clark</user>:<message>Has anyone noticed a drop in subscribers after enabling the new feature on the OpenAI chatbot?</message><message_url>https://t.me/bot_devs_novice/914531</message_url>
-<time>2024-03-15 11:02</time><user>Lucas Brown</user>:<message>Yes, @Emily Clark, we experienced the same issue. It seems like the auto-reply feature might be a bit too aggressive.</message><message_url>https://t.me/bot_devs_novice/914532</message_url>
-<time>2024-03-15 11:05</time><user>Sarah Miller</user>:<message>I found a workaround for it. Adjusting the sensitivity settings helped us retain our subscribers. Maybe give that a try?</message><message_url>https://t.me/bot_devs_novice/914533</message_url>
-<time>2024-03-15 12:00</time><user>Kevin White</user>:<message>Hey all, don't forget to vote for the DFS feature! There are rewards for participation.</message><message_url>https://t.me/bot_devs_novice/914534</message_url>
-<time>2024-03-15 12:02</time><user>Rachel Green</user>:<message>@Kevin White, just voted! Excited about the rewards. Does anyone know when they will be distributed?</message><message_url>https://t.me/bot_devs_novice/914535</message_url>
-<time>2024-03-15 12:04</time><user>Leo Thompson</user>:<message>Usually, rewards get distributed a week after the voting ends. Can't wait to see the new features in action!</message><message_url>https://t.me/bot_devs_novice/914536</message_url>
-</example_input>
-<example_format>
-Нижче наведено вичерпний перелік обговорюваних у цьому чаті тем:
-
-• <a href='https://t.me/bot_devs_novice/914528'>📔 Alex Smith запитав історію чату і Maria Jones відповіла</a>
-• <a href='https://t.me/bot_devs_novice/914531'>😢 Emily Clark поскаржилася на втрату підписників чат-ботом OpenAI через певну функцію</a>
-• <a href='https://t.me/bot_devs_novice/914534'>🏆 Kevin White попросив взяти участь у голосуванні за DFS та винагороди за участь</a>
-...
-
-Наперше повідомлення датується 2024-03-15 08:13.
-</example_format>
-""",
-        max_tokens=2000,
-    )
-    history = f"<messages_history>{messages_history}</messages_history>"
-    ai_conversation.add_user_message(text=f"Summarize the chat history\n{history}")
-
-    try:
-        await ai_conversation.answer_with_ai(
-            message,
-            sent_message,
-            notification="#history",
-            apply_formatting=False,
-        )
-
-    except APIStatusError as e:
-        logging.error(e)
-        await sent_message.edit_text(
-            "An error occurred while processing the request. Please try again later."
-        )
 
 
 @ai_router.message(
@@ -406,7 +502,7 @@ async def ask_ai(
         if provider == "anthropic"
         else OpenAIProvider(
             client=openai_client,
-            model_name="gpt-3.5-turbo" if rating < 300 else "gpt-4o",
+            model_name="gpt-4o-mini" if rating < 300 else "gpt-4o",
         )
     )
 
@@ -433,16 +529,17 @@ async def ask_ai(
         prompt = multiple_prompt
 
     if num_messages:
-        messages_history = await get_messages_history(
+        messages_history = await get_pyrogram_messages_history(
             client, message.reply_to_message.message_id, message.chat.id, num_messages
         )
     elif reply_prompt:
-        messages_history = await get_messages_history(
+        messages_history = await get_pyrogram_messages_history(
             client,
             message.reply_to_message.message_id,
             message.chat.id,
             chained_replies=True,
         )
+
     long_answer = command is not None
 
     logging.info(f"{ai_mode=}")
@@ -498,8 +595,9 @@ async def ask_ai(
             ai_conversation.add_assistant_message("Дякую!")
 
     if message.photo or photo:
-        if not photo:
+        if not photo and message.photo:
             photo = message.photo[-1]
+
         logging.info("Adding user message with photo")
         photo_bytes_io = await bot.download(photo, destination=BytesIO())
         ai_media = ai_provider.media_class(photo_bytes_io)
@@ -804,36 +902,46 @@ async def set_ai_provider(
     await message.answer(f"Провайдер змінено на {provider}")
 
 
-@ai_router.message(F.text, F.chat.id == -1001415356906)
-@ai_router.message(F.caption, F.chat.id == -1001415356906)
-@flags.rate_limit(limit=100, key="ai-history", max_times=1, silent=True)
+@ai_router.message(F.text | F.caption, F.chat.id == -1001415356906)
 async def history_worker(
     message: types.Message,
     state: FSMContext,
     client: Client,
-    anthropic_client: AsyncAnthropic,
     bot: Bot,
+    openai_client: AsyncOpenAI,
 ):
     state_data = await state.get_data()
     ai_mode = state_data.get("ai_mode")
-    last_message_id = state_data.get("last_message_id", None)
-    if not last_message_id:
-        await state.update_data({"last_message_id": message.message_id})
-        return
+    last_summarized_id = state_data.get("last_summarized_id", 0)
+    messages_history = state_data.get("messages_history", None)
 
-    logging.info(
-        f"Last message id: {last_message_id}, left: {200 - (message.message_id - last_message_id)} messages"
-    )
+    if not messages_history:
+        initial_messages = await get_initial_messages(
+            client, message.chat.id, message.message_id
+        )
+        messages_history = deque(initial_messages, maxlen=400)
+    else:
+        messages_history = deque(json.loads(messages_history), maxlen=400)
+
+    new_message = {
+        "date": message.date.isoformat(),
+        "user": hd.quote(message.from_user.full_name),
+        "content": hd.quote(message.text or message.caption or ""),
+        "url": message.get_url(),
+        "reply_to_id": message.reply_to_message.message_id
+        if message.reply_to_message
+        else None,
+        "message_id": message.message_id,
+    }
+
+    messages_history.append(new_message)
+    await state.update_data(messages_history=json.dumps(list(messages_history)))
+
     if ai_mode == "OFF":
         return
-    if message.message_id >= last_message_id + 200:
-        await state.update_data({"last_message_id": message.message_id})
-        # print summarised history
-        await summarize_chat_history(
-            message,
-            state=state,
-            client=client,
-            bot=bot,
-            anthropic_client=anthropic_client,
-            with_bot=False,
+
+    if message.message_id - last_summarized_id >= 400:
+        await summarize_and_update_history(
+            message, state, bot, openai_client, with_bot=False
         )
+        await state.update_data(last_summarized_id=message.message_id)
