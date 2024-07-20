@@ -24,3 +24,4 @@ pycountry
 fastapi
 uvicorn
 asyncpg
+emoji

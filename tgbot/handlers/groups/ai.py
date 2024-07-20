@@ -1,5 +1,6 @@
 import logging
 import random
+from emoji import EMOJI_DATA
 import pycountry
 
 
@@ -26,6 +27,7 @@ from tgbot.misc.ai_prompts import (
     JOKE_NATION_MODE,
     MANUPULATOR_MODE,
     NASTY_MODE,
+    TARO_MODE,
     YANUKOVICH_MODE,
 )
 from tgbot.services.ai_service.ai_conversation import AIConversation
@@ -643,6 +645,76 @@ async def determine_nationality(
             "An error occurred while processing the request. Please try again later."
         )
 
+@ai_router.message(Command("taro"))
+@flags.rate_limit(limit=120, key="taro")
+@flags.override(user_id=362089194)
+async def taro_reading(
+    message: types.Message,
+    anthropic_client: AsyncAnthropic,
+    bot: Bot,
+    state: FSMContext,
+    command: CommandObject | None = None,
+):
+    ai_provider = AnthropicProvider(
+        client=anthropic_client,
+        model_name="claude-3-5-sonnet-20240620",
+    )
+    
+    # question = command.args
+    if command and command.args:
+        question = command.args
+    elif message.reply_to_message.text or message.reply_to_message.caption:
+        question = message.reply_to_message.text or message.reply_to_message.caption
+    else:
+        await message.reply("Будь ласка, задайте питання після команди /taro.")
+        return
+
+    sent_message = await message.reply("🔮 Розкладаю карти Таро...")
+    
+    # Select a random emoji from all available emojis
+    emoji = random.choice(list(EMOJI_DATA.keys()))
+    
+    ai_conversation = AIConversation(
+        bot=bot,
+        ai_provider=ai_provider,
+        storage=state.storage,
+        system_message=TARO_MODE.format(
+            emoji=emoji, question=question
+        ),
+        max_tokens=400,
+        temperature=0.7,
+    )
+    
+    ai_conversation.add_user_message(text=f"/taro {question}")
+    usage_cost = await ai_conversation.calculate_cost(
+        Sonnet, message.chat.id, message.from_user.id
+    )
+    try:
+        if usage_cost > 2:
+            keyboard = await payment_keyboard(bot, usage_cost, message.chat.id)
+        else:
+            keyboard = None
+        response = await ai_conversation.answer_with_ai(
+            message=message,
+            sent_message=sent_message,
+            notification="",
+            with_tts=False,
+            keyboard=keyboard,
+            apply_formatting=True,
+        )
+        if not response:
+            return
+        await ai_conversation.update_usage(
+            message.chat.id,
+            message.from_user.id,
+            response.usage,
+            ai_conversation.max_tokens * 0.75,
+        )
+    except APIStatusError as e:
+        logging.error(e)
+        await sent_message.edit_text(
+            "Виникла помилка під час обробки запиту. Будь ласка, спробуйте пізніше."
+        )
 
 @ai_router.message(Command("gay"))
 @flags.rate_limit(limit=120, key="gay")
@@ -712,11 +784,12 @@ async def determine_orientation(
 
 
 # command to handle /provider openai; /provider anthropic
-@ai_router.message(Command("provider"))
+@ai_router.message(Command("provider_anthropic"))
+@ai_router.message(Command("provider_openai"))
 async def set_ai_provider(
     message: types.Message, state: FSMContext, command: CommandObject
 ):
-    provider = command.args
+    provider = command.command.split("_")[1]
     if provider.casefold() not in ("openai", "anthropic"):
         return await message.answer("Невірний провайдер.")
 
