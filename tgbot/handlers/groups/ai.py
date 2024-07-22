@@ -118,14 +118,13 @@ def should_include_message(msg: Union[dict, PyrogramMessage], with_bot: bool) ->
 def format_messages_history(
     messages: list[Union[dict, PyrogramMessage]],
     with_bot: bool = True,
-    limit: int = 2048,
 ) -> str:
     formatted_messages = [
         format_message(msg) for msg in messages if should_include_message(msg, with_bot)
     ]
 
     message_history = "\n".join(formatted_messages)
-    return message_history[:limit]
+    return message_history
 
 
 async def summarize_and_update_history(
@@ -154,22 +153,47 @@ async def summarize_and_update_history(
             client=ai_client,
             model_name="gpt-4o-mini",
         ),
-        system_message="""You're a professional summarizer of conversation. You take all messages at determine the most important topics in the conversation.
-List all discussed topics in the history as a list of bullet points.
-Use Ukrainian language. Tell the datetime period of the earliest message (e.g. 2022-03-07 12:00).
+system_message="""
+You are a professional conversation summarizer. Your task is to analyze the entire chat history and identify the most significant topics discussed. Please follow these guidelines:
+
+Create a list of bullet points summarizing the main topics in Ukrainian.
+Provide the date and time of the earliest message in the format "YYYY-MM-DD HH:MM".
 Format each bullet point as follows:
-- <a href='{earliest message url}}'>{TOPIC}</a>
-The url should be as it is, and point to the earliest message of the sumarized topic.
-Make sure to close all the 'a' tags properly.
-<important_rules>
-- DO NOT WRITE MESSAGES VERBATIM, JUST SUMMARIZE THEM.
-- List not between 10 and 35 topics.
-- The topic descriptions should be distinct and descriptive.
-- The topic should contain at least 3 messages and be not verbatim text of the message.
-- Write every topic with an emoji that describes the topic.
-- Include names of the users that were discussing the topic.
-- Do not just copy all topics from the previous #history message, include new missing ones. Probably fix mistakes from the previous message.
-</important_rule>
+• <a href='{earliest_message_url}'>{EMOJI} {TOPIC}</a>
+Make sure to close all 'a' tags properly.
+The {earliest_message_url} should point to the first message where the topic was mentioned.
+Include an appropriate emoji that represents the topic at the beginning of each summary.
+Mention the names of users who participated in the discussion of each topic.
+
+Important rules:
+
+Summarize the content; do not copy messages verbatim.
+List at 18 distinct topics.
+Ensure each topic description is unique and informative.
+Cover all major topics discussed in the chat, not individual messages.
+Each topic should encompass at least 3 messages and not be a direct quote.
+Focus on substantial discussions rather than brief exchanges.
+
+Example input and output format:
+<example_input>
+<time>2024-03-15 10:05</time><user>Alex Smith</user>:<message>Hey, does anyone know how we can request the history of this chat? I need it for our monthly review.</message><message_url>https://t.me/bot_devs_novice/914528</message_url>
+<time>2024-03-15 10:06</time><user>Maria Jones</user>:<message>@Alex Sith, I think you can use the chat history request feature in the settings. Just found a link about it.</message><message_url>https://t.me/bot_devs_novice/914529</message_url>
+<time>2024-03-15 10:08</time><user>John Doe</user>:<message>Correct, @Maria Jones. Also, ensure that you have the admin rights to do so. Sometimes permissions can be tricky.</message><message_url>https://t.me/bot_devs_novice/914530</message_url>
+<time>2024-03-15 11:00</time><user>Emily Clark</user>:<message>Has anyone noticed a drop in subscribers after enabling the new feature on the OpenAI chatbot?</message><message_url>https://t.me/bot_devs_novice/914531</message_url>
+<time>2024-03-15 11:02</time><user>Lucas Brown</user>:<message>Yes, @Emily Clark, we experienced the same issue. It seems like the auto-reply feature might be a bit too aggressive.</message><message_url>https://t.me/bot_devs_novice/914532</message_url>
+<time>2024-03-15 11:05</time><user>Sarah Miller</user>:<message>I found a workaround for it. Adjusting the sensitivity settings helped us retain our subscribers. Maybe give that a try?</message><message_url>https://t.me/bot_devs_novice/914533</message_url>
+<time>2024-03-15 12:00</time><user>Kevin White</user>:<message>Hey all, don't forget to vote for the DFS feature! There are rewards for participation.</message><message_url>https://t.me/bot_devs_novice/914534</message_url>
+<time>2024-03-15 12:02</time><user>Rachel Green</user>:<message>@Kevin White, just voted! Excited about the rewards. Does anyone know when they will be distributed?</message><message_url>https://t.me/bot_devs_novice/914535</message_url>
+<time>2024-03-15 12:04</time><user>Leo Thompson</user>:<message>Usually, rewards get distributed a week after the voting ends. Can't wait to see the new features in action!</message><message_url>https://t.me/bot_devs_novice/914536</message_url>
+</example_input>
+<example_format>
+Нижче наведено вичерпний перелік обговорюваних у цьому чаті тем:
+• <a href='https://t.me/bot_devs_novice/914528'>📔 Alex Smith запитав історію чату</a>
+• <a href='https://t.me/bot_devs_novice/914531'>😢 Emily Clark поскаржилася на втрату підписників чат-ботом OpenAI через певну функцію</a>
+• <a href='https://t.me/bot_devs_novice/914534'>🏆 Kevin White попросив взяти участь у голосуванні за DFS та винагороди за участь</a>
+...
+Наперше повідомлення датується 2024-03-15 08:13.
+</example_format>
 """,
         max_tokens=2000,
     )
@@ -941,7 +965,7 @@ async def history_worker(
         return
 
     if message.message_id - last_summarized_id >= 400:
+        await state.update_data(last_summarized_id=message.message_id)
         await summarize_and_update_history(
             message, state, bot, openai_client, with_bot=False
         )
-        await state.update_data(last_summarized_id=message.message_id)
