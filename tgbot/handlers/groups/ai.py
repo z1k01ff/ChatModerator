@@ -19,7 +19,6 @@ from openai import AsyncOpenAI
 from elevenlabs.client import AsyncElevenLabs
 from pyrogram.client import Client
 
-from tgbot.filters.permissions import HasPermissionsFilter
 from tgbot.filters.rating import RatingFilter
 from tgbot.misc.ai_prompts import (
     GOOD_MODE,
@@ -455,42 +454,21 @@ async def command_summarize_chat_history(
 
 @ai_router.message(
     Command("ai", magic=F.args.as_("prompt")),
-    or_f(
-        HasPermissionsFilter(can_delete_messages=True),
-        RatingFilter(rating=50),
-    ),
 )
 @ai_router.message(
     Command("ai", magic=F.args.as_("prompt")),
     F.photo[-1].as_("photo"),
-    or_f(
-        HasPermissionsFilter(can_delete_messages=True),
-        RatingFilter(rating=50),
-    ),
 )
 @ai_router.message(
     F.reply_to_message.from_user.id == ASSISTANT_ID,
     F.reply_to_message.text.as_("assistant_message"),
     or_f(F.text.as_("prompt"), F.caption.as_("prompt")),
-    or_f(
-        HasPermissionsFilter(can_delete_messages=True),
-        RatingFilter(rating=50),
-    ),
 )
 @ai_router.message(
     Command("ai", magic=F.args.regexp(MULTIPLE_MESSAGES_REGEX)),
-    F.reply_to_message,
-    or_f(
-        HasPermissionsFilter(can_delete_messages=True),
-        RatingFilter(rating=50),
-    ),
 )
 @ai_router.message(
-    Command("ai"),
-    or_f(
-        HasPermissionsFilter(can_delete_messages=True),
-        RatingFilter(rating=50),
-    ),
+    Command("ai")
 )
 @ai_router.message(
     Command("ai"),

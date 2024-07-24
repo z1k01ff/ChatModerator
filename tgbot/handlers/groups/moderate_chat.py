@@ -700,3 +700,32 @@ async def demote_user(message: types.Message):
         await asyncio.sleep(5)
         await message.delete()
         await service_message.delete()
+
+
+# Define the /ban_me_really handler
+@groups_moderate_router.message(Command("ban_me_really", prefix="/"), F.from_user)
+async def ban_me_really(message: types.Message):
+    user_id = message.from_user.id
+
+    try:
+        await message.chat.unban(user_id=user_id)
+        await message.answer(f"Користувач {message.from_user.mention_html()} був САМОзаблокований командою /ban_me_really.")
+        logging.info(f"User {message.from_user.username} was banned by themselves.")
+    except Exception as e:
+        logging.exception(e)
+        await message.answer("Не вдалося заблокувати користувача.")
+
+# Define the /ban_me_please handler
+@groups_moderate_router.message(Command("ban_me_please", prefix="/"), F.from_user)
+async def ban_me_please(message: types.Message):
+    user_id = message.from_user.id
+    restriction_period = 15 * 60  # 15 minutes in seconds
+    until_date = datetime.datetime.now() + datetime.timedelta(seconds=restriction_period)
+
+    try:
+        await message.chat.restrict(user_id=user_id, permissions=set_user_ro_permissions(), until_date=until_date)
+        await message.answer(f"Користувач {message.from_user.mention_html()} був САМОобмежений на 15 хвилин командою /ban_me_please.")
+        logging.info(f"User {message.from_user.username} was restricted for 15 minutes by themselves.")
+    except Exception as e:
+        logging.exception(e)
+        await message.answer("Не вдалося обмежити користувача.")
