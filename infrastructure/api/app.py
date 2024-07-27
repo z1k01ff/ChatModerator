@@ -7,6 +7,7 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from pydantic import BaseModel
 import random
 from typing import List
+import time
 
 from starlette.middleware.cors import CORSMiddleware
 
@@ -29,24 +30,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting
+RATE_LIMIT = 2  # requests per second
+last_request_time = {}
+
+def check_rate_limit(user_id: int):
+    current_time = time.time()
+    if user_id in last_request_time:
+        time_passed = current_time - last_request_time[user_id]
+        if time_passed < 1 / RATE_LIMIT:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    last_request_time[user_id] = current_time
 
 class ShareResultsRequest(BaseModel):
     user_id: int
     session_result: int
     InitData: str
 
-
-# Create a bot instance
-# Pydantic models
 class BalanceResponse(BaseModel):
     balance: int
-
 
 class SpinRequest(BaseModel):
     user_id: int
     stake: int
     InitData: str
-
 
 class SpinResponse(BaseModel):
     result: List[str]
@@ -54,30 +61,24 @@ class SpinResponse(BaseModel):
     winAmount: int
     newBalance: int
 
-
 async def get_user_balance(user_id: int, repo: RequestsRepo) -> int:
     return await repo.rating_users.get_rating_by_user_id(user_id) or 0
-
 
 async def update_user_balance(
     user_id: int, new_balance: int, repo: RequestsRepo
 ) -> None:
     await repo.rating_users.update_rating_by_user_id(user_id, new_balance)
 
-
 # Game logic
 SYMBOLS = ["🍋", "🍒", "🍇", "🎰", "7️⃣"]
 WEIGHTS = [70, 55, 50, 10, 3]
 
-
 def get_random_symbol():
     return random.choices(SYMBOLS, weights=WEIGHTS, k=1)[0]
-
 
 def calculate_winnings(result: List[str], stake: int) -> int:
     if len(set(result)) == 1:  # All symbols are the same
         symbol = result[0]
-
         multiplier = {
             "7️⃣": 1000,
             "🎰": 200,
@@ -88,11 +89,8 @@ def calculate_winnings(result: List[str], stake: int) -> int:
         return stake * multiplier
     return 0
 
-
 router = APIRouter(prefix="/chatmoderator/api")
 
-
-# API endpoints
 @router.get("/balance", response_model=BalanceResponse)
 async def get_balance(user_id: int):
     async with session_pool() as session:
@@ -100,11 +98,15 @@ async def get_balance(user_id: int):
         balance = await get_user_balance(user_id, repo)
     return {"balance": balance}
 
-
 @router.post("/spin", response_model=SpinResponse)
 async def spin(request: SpinRequest):
+    check_rate_limit(request.user_id)
+
     if not request.InitData or not validate_telegram_data(request.InitData):
         raise HTTPException(status_code=400, detail="Invalid initData")
+
+    if request.stake <= 0:
+        raise HTTPException(status_code=400, detail="Stake must be positive")
 
     async with session_pool() as session:
         repo = RequestsRepo(session)
@@ -121,21 +123,13 @@ async def spin(request: SpinRequest):
         await update_user_balance(request.user_id, newBalance, repo)
 
         data = parse_init_data(request.InitData)
-        if (
-            action == "win"
-            # and "🍋" not in result
-            # and "🍒" not in result
-            # and "🍇" not in result
-        ):
+        if action == "win":
             try:
-                user = data.get("user")
-                user = json.loads(user)
-                first_name = user.get("first_name")
-                last_name = user.get("last_name")
+                user = json.loads(data.get("user", "{}"))
+                first_name = user.get("first_name", "")
+                last_name = user.get("last_name", "")
                 full_name = f"{first_name} {last_name}" if last_name else first_name
-                name_with_mention = (
-                    f'<a href="tg://user?id={request.user_id}">{full_name}</a>'
-                )
+                name_with_mention = f'<a href="tg://user?id={request.user_id}">{full_name}</a>'
                 prize = " ".join(result)
                 success_message = f"Користувач {name_with_mention} вибив {prize} і отримав {winAmount} рейтингу, тепер у нього {newBalance} рейтингу.\nВітаємо!"
                 with suppress(Exception):
@@ -165,11 +159,8 @@ async def spin(request: SpinRequest):
         "newBalance": newBalance,
     }
 
-
 app.include_router(router)
 
-
-# Make sure to close the bot session when the app shuts down
 @app.on_event("shutdown")
 async def shutdown_event():
     await bot.session.close()
