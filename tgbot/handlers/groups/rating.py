@@ -10,6 +10,7 @@ from cachetools import TTLCache
 
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.filters.rating import RatingFilter
+from tgbot.filters.admin import AdminFilter
 from tgbot.handlers.groups.casino import HOURS
 from tgbot.middlewares.ratings_cache import RatingCacheReactionMiddleware
 from tgbot.services.rating import (
@@ -19,6 +20,7 @@ from tgbot.services.rating import (
 )
 from tgbot.services.cache_profiles import get_profile_cached
 from tgbot.services.rating import change_rating
+
 
 groups_rating_router = Router()
 groups_rating_router.message.filter(F.chat.type == ChatType.SUPERGROUP)
@@ -277,3 +279,28 @@ async def get_and_update_previous_rating(
         key=history_key, data={"previous_rating": current_rating}
     )
     return previous_rating, current_rating - previous_rating
+
+@groups_rating_router.message(Command("setrating"), AdminFilter())
+async def set_user_rating(message: types.Message, command: Command, repo: RequestsRepo):
+    if not message.reply_to_message:
+        await message.reply("This command must be used as a reply to a user's message.")
+        return
+
+    args = command.args
+    if not args:
+        await message.reply("Usage: /setrating [new_rating]")
+        return
+
+    try:
+        new_rating = int(args)
+    except ValueError:
+        await message.reply("The new rating must be a valid integer.")
+        return
+
+    target_user = message.reply_to_message.from_user
+    await repo.rating_users.update_rating_by_user_id(target_user.id, new_rating)
+    
+    # Determine the user's new title based on the new rating
+    new_title = determine_user_title(new_rating)
+    
+    await message.reply(f"Rating for user {target_user.full_name} has been set to {new_rating}.\nNew title: {new_title}")
