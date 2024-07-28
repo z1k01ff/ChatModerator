@@ -2,7 +2,7 @@ import logging
 
 from aiogram import Bot, F, Router, flags, types
 from aiogram.enums import ChatType
-from aiogram.filters import Command, or_f
+from aiogram.filters import Command, CommandObject, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.exceptions import TelegramBadRequest
@@ -281,26 +281,23 @@ async def get_and_update_previous_rating(
     return previous_rating, current_rating - previous_rating
 
 @groups_rating_router.message(Command("setrating"), AdminFilter())
-async def set_user_rating(message: types.Message, command: Command, repo: RequestsRepo):
+async def set_user_rating(message: types.Message, command: CommandObject, repo: RequestsRepo):
     if not message.reply_to_message:
-        await message.reply("This command must be used as a reply to a user's message.")
+        await message.reply("Цю команду потрібно використовувати як відповідь на повідомлення користувача.")
         return
 
     args = command.args
     if not args:
-        await message.reply("Usage: /setrating [new_rating]")
+        await message.reply("Використання: /setrating [новий_рейтинг]")
         return
-
     try:
         new_rating = int(args)
     except ValueError:
-        await message.reply("The new rating must be a valid integer.")
+        await message.reply("Новий рейтинг має бути дійсним цілим числом.")
         return
-
     target_user = message.reply_to_message.from_user
     await repo.rating_users.update_rating_by_user_id(target_user.id, new_rating)
     
-    # Determine the user's new title based on the new rating
     new_title = determine_user_title(new_rating)
     
-    await message.reply(f"Rating for user {target_user.full_name} has been set to {new_rating}.\nNew title: {new_title}")
+    await message.reply(f"Рейтинг користувача {target_user.full_name} змінено на {new_rating}.\nНове звання: {new_title}")

@@ -42,6 +42,7 @@ def check_rate_limit(user_id: int):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
     last_request_time[user_id] = current_time
 
+
 class ShareResultsRequest(BaseModel):
     user_id: int
     session_result: int

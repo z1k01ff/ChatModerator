@@ -193,9 +193,17 @@ Important rules:
 - Cover all major topics discussed in the chat, not individual messages.
 - Each topic should encompass at least 3 messages and not be a direct quote. If a user has left one message without any replies, it should not be considered a topic.
 - Focus on substantial discussions rather than brief exchanges.
-- Topics should be listed strictly in a chronological order.
 - Use message_ids for the URL to ensure the correct message is linked (the first one).
-- Divide the topics with a day period: morning (6:00-12:00), afternoon (12:00-18:00), evening (18:00-24:00), and night (24:00-6:00).
+- Categorize the topics based on the timestamp of each message into four time periods:
+    Morning: 06:00:00 to 11:59:59
+    Afternoon: 12:00:00 to 17:59:59
+    Evening: 18:00:00 to 23:59:59
+    Night: 00:00:00 to 05:59:59
+
+    Use the local time zone provided in the message timestamps for categorization.
+    If a conversation spans multiple days, start a new day's categorization with "Morning" at 06:00:00.
+    Present the summarized topics under their respective time period headings in chronological order.
+    If no messages occur during a particular time period, omit that period from the summary.
 
 Example input and output format:
 <example_input>
@@ -212,10 +220,10 @@ Example input and output format:
 <example_format>
 Нижче наведено вичерпний перелік обговорюваних у цьому чаті тем:
 Зранку:
-• <a href='https://t.me/bot_devs_novice/914528'>📔 Alex Smith запитав історію чату</a>
-• <a href='https://t.me/bot_devs_novice/914531'>😢 Emily Clark поскаржилася на втрату підписників чат-ботом OpenAI через певну функцію</a>
+• <a href='https://t.me/bot_devs_novice/914528'>10:00 - 📔 Alex Smith запитав історію чату</a>
+• <a href='https://t.me/bot_devs_novice/914531'>11:00 - 😢 Emily Clark поскаржилася на втрату підписників чат-ботом OpenAI через певну функцію</a>
 Ввечері:
-• <a href='https://t.me/bot_devs_novice/914534'>🏆 Kevin White попросив взяти участь у голосуванні за DFS та винагороди за участь</a>
+• <a href='https://t.me/bot_devs_novice/914534'>22:00 - 🏆 Kevin White попросив взяти участь у голосуванні за DFS та винагороди за участь</a>
 ...
 Наперше повідомлення датується 2024-03-15 08:13.
 </example_format>
@@ -963,7 +971,10 @@ async def history_worker(
 
     new_message = {
         "date": message.date.isoformat(),
-        "user": hd.quote(message.from_user.full_name),
+        "user": ( 
+            hd.quote(message.forward_from_chat.full_name) if message.forward_from_chat else
+            hd.quote(message.from_user.full_name)
+            ),
         "content": hd.quote(message.text or message.caption or ""),
         "url": message.get_url(),
         "reply_to_id": message.reply_to_message.message_id

@@ -27,6 +27,8 @@ services:
     image: redis:6.2-alpine
     restart: always
     command: redis-server --port $REDIS_PORT --save 20 1 --loglevel warning --requirepass $REDIS_PASSWORD
+    ports:
+      - "6399:6379"
     env_file:
       - ".env"
     volumes:
