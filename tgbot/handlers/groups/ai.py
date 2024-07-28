@@ -162,6 +162,9 @@ async def summarize_and_update_history(
         await message.answer(f"Недостатньо повідомлень для створення історії.\n{last_summarized_message}")
         return
 
+    new_last_history_message_id = max(msg['message_id'] for msg in messages_history)
+    await state.update_data(last_history_message_id=new_last_history_message_id)
+
     formatted_history = format_messages_history(messages_history, with_bot=with_bot)
 
     ai_conversation = AIConversation(
@@ -192,6 +195,7 @@ Important rules:
 - Focus on substantial discussions rather than brief exchanges.
 - Topics should be listed strictly in a chronological order.
 - Use message_ids for the URL to ensure the correct message is linked (the first one).
+- Divide the topics with a day period: morning (6:00-12:00), afternoon (12:00-18:00), evening (18:00-24:00), and night (24:00-6:00).
 
 Example input and output format:
 <example_input>
@@ -201,14 +205,16 @@ Example input and output format:
 <time>2024-03-15 11:00</time><user>Emily Clark</user>:<message>Has anyone noticed a drop in subscribers after enabling the new feature on the OpenAI chatbot?</message><message_url>https://t.me/bot_devs_novice/914531</message_url>
 <time>2024-03-15 11:02</time><user>Lucas Brown</user>:<message>Yes, @Emily Clark, we experienced the same issue. It seems like the auto-reply feature might be a bit too aggressive.</message><message_url>https://t.me/bot_devs_novice/914532</message_url>
 <time>2024-03-15 11:05</time><user>Sarah Miller</user>:<message>I found a workaround for it. Adjusting the sensitivity settings helped us retain our subscribers. Maybe give that a try?</message><message_url>https://t.me/bot_devs_novice/914533</message_url>
-<time>2024-03-15 12:00</time><user>Kevin White</user>:<message>Hey all, don't forget to vote for the DFS feature! There are rewards for participation.</message><message_url>https://t.me/bot_devs_novice/914534</message_url>
-<time>2024-03-15 12:02</time><user>Rachel Green</user>:<message>@Kevin White, just voted! Excited about the rewards. Does anyone know when they will be distributed?</message><message_url>https://t.me/bot_devs_novice/914535</message_url>
-<time>2024-03-15 12:04</time><user>Leo Thompson</user>:<message>Usually, rewards get distributed a week after the voting ends. Can't wait to see the new features in action!</message><message_url>https://t.me/bot_devs_novice/914536</message_url>
+<time>2024-03-15 22:00</time><user>Kevin White</user>:<message>Hey all, don't forget to vote for the DFS feature! There are rewards for participation.</message><message_url>https://t.me/bot_devs_novice/914534</message_url>
+<time>2024-03-15 22:02</time><user>Rachel Green</user>:<message>@Kevin White, just voted! Excited about the rewards. Does anyone know when they will be distributed?</message><message_url>https://t.me/bot_devs_novice/914535</message_url>
+<time>2024-03-15 22:04</time><user>Leo Thompson</user>:<message>Usually, rewards get distributed a week after the voting ends. Can't wait to see the new features in action!</message><message_url>https://t.me/bot_devs_novice/914536</message_url>
 </example_input>
 <example_format>
 Нижче наведено вичерпний перелік обговорюваних у цьому чаті тем:
+Зранку:
 • <a href='https://t.me/bot_devs_novice/914528'>📔 Alex Smith запитав історію чату</a>
 • <a href='https://t.me/bot_devs_novice/914531'>😢 Emily Clark поскаржилася на втрату підписників чат-ботом OpenAI через певну функцію</a>
+Ввечері:
 • <a href='https://t.me/bot_devs_novice/914534'>🏆 Kevin White попросив взяти участь у голосуванні за DFS та винагороди за участь</a>
 ...
 Наперше повідомлення датується 2024-03-15 08:13.
@@ -232,7 +238,6 @@ Example input and output format:
         
         if response:
             # Update the last history message ID
-            new_last_history_message_id = max(msg['message_id'] for msg in messages_history)
             await state.update_data(last_history_message_id=new_last_history_message_id, last_summarized_id=sent_message.message_id)
     except Exception as e:
         logging.error(f"Error in summarize_and_update_history: {e}")
@@ -547,14 +552,15 @@ async def ask_ai(
     if ai_mode == "OFF":
         return
 
-    if command and command.args is None:
-        prompt = reply_prompt
-        actor_name = reply_person
-        reply_prompt = ""
-        reply_person = ""
-    else:
-        prompt = command.args
-        actor_name = message.from_user.full_name
+    if command:
+        if command.args is None:
+            prompt = reply_prompt
+            actor_name = reply_person
+            reply_prompt = ""
+            reply_person = ""
+        else:
+            prompt = command.args
+            actor_name = message.from_user.full_name
 
     num_messages, multiple_prompt = parse_multiple_command(command)
     messages_history = ""

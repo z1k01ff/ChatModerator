@@ -708,8 +708,8 @@ async def ban_me_really(message: types.Message):
     user_id = message.from_user.id
 
     try:
-        await message.chat.unban(user_id=user_id)
-        await message.answer(f"Користувач {message.from_user.mention_html()} був САМОзаблокований командою /ban_me_really.")
+        await message.chat.ban(user_id=user_id, until_date=datetime.datetime.now() + datetime.timedelta(days=1))
+        await message.answer(f"Користувач {message.from_user.mention_html()} був САМОзаблокований командою /ban_me_really на 1 день.")
         logging.info(f"User {message.from_user.username} was banned by themselves.")
     except Exception as e:
         logging.exception(e)
