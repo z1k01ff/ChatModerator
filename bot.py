@@ -13,7 +13,9 @@ import httpx
 from openai import AsyncOpenAI
 from pyrogram import Client
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from infrastructure.database.setup import create_engine, create_session_pool
+from infrastructure.scheduler.jobs import setup_rating_inflation_task
 from tgbot.config import Config, load_config
 from tgbot.handlers.essential.fun import fun_router
 from tgbot.handlers.groups import (
@@ -24,6 +26,7 @@ from tgbot.handlers.groups import (
 )
 from tgbot.handlers.private.basic import basic_router
 from tgbot.handlers.private.admin import admin_router
+from tgbot.middlewares.activity import UserActivityMiddleware
 from tgbot.middlewares.bot_messages import BotMessages
 from tgbot.middlewares.database import DatabaseMiddleware
 from tgbot.middlewares.policy_content import OpenAIModerationMiddleware
@@ -37,16 +40,17 @@ from tgbot.misc.phrases import bot_startup_phrases
 from aiogram.client.default import DefaultBotProperties
 
 
-async def on_startup(bot: Bot, config: Config, client: Client) -> None:
+async def on_startup(bot: Bot, config: Config, client: Client, scheduler: AsyncIOScheduler) -> None:
     admin_ids = config.tg_bot.admin_ids
     await broadcaster.broadcast(bot, admin_ids, random.choice(bot_startup_phrases))
     await set_default_commands(bot)
     await client.start()
+    scheduler.start()
 
 
-async def shutdown(client: Client) -> None:
+async def shutdown(client: Client, scheduler: AsyncIOScheduler) -> None:
     await client.stop()
-
+    scheduler.shutdown()
 
 def register_global_middlewares(
     dp: Dispatcher,
@@ -76,6 +80,7 @@ def register_global_middlewares(
     dp.message_reaction.middleware(ThrottlingMiddleware(storage))
     dp.update.outer_middleware(DatabaseMiddleware(session_pool))
     dp.message.outer_middleware(MessageUserMiddleware())
+    UserActivityMiddleware(storage).setup(dp)
 
 
 def setup_logging():
@@ -155,6 +160,11 @@ async def main():
         api_key=config.anthropic.api_key,
     )
 
+    scheduler = AsyncIOScheduler()
+    
+    # Setup rating inflation task
+    setup_rating_inflation_task(scheduler, bot, session_pool, storage)
+
     dp.include_routers(
         payment_router,
         groups_rating_router,
@@ -177,7 +187,7 @@ async def main():
     await bot.delete_webhook()
     dp.startup.register(on_startup)
     dp.shutdown.register(shutdown)
-    await dp.start_polling(bot, config=config)
+    await dp.start_polling(bot, config=config, scheduler=scheduler)
 
 
 if __name__ == "__main__":

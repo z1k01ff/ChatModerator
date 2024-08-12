@@ -30,10 +30,11 @@ class RatingUsers(Base):
     Represents user ratings in the application.
     """
     user_id: Mapped[int] = mapped_column(BIGINT, primary_key=True, autoincrement=False)
+    chat_id: Mapped[int] = mapped_column(BIGINT, primary_key=True, autoincrement=False)
     rating: Mapped[int] = mapped_column(Integer, default=0)
 
     def __repr__(self):
-        return f"<RatingUsers user_id={self.user_id} rating={self.rating}>"
+        return f"<RatingUsers user_id={self.user_id} chat_id={self.chat_id} rating={self.rating}>"
 
 
 class MessageUser(Base, TableNameMixin):

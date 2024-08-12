@@ -1,7 +1,7 @@
 import logging
 from openai import AsyncOpenAI
 import json
-from typing import Dict, Callable
+from typing import Dict
 from aiogram.fsm.context import FSMContext
 
 class AIUserContextManager:
@@ -38,20 +38,16 @@ class AIUserContextManager:
                 "type": "function",
                 "function": {
                     "name": "update_user_context",
-                    "description": "Update the context for a specific user",
+                    "description": "Update the context for the user",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "user_id": {
-                                "type": "integer",
-                                "description": "The ID of the user whose context is being updated",
-                            },
                             "new_context": {
                                 "type": "string",
                                 "description": "The new context for the user",
                             },
                         },
-                        "required": ["user_id", "new_context"],
+                        "required": ["new_context"],
                     },
                 },
             },
@@ -68,9 +64,8 @@ class AIUserContextManager:
             },
         ]
 
-
         messages = [
-            {"role": "system", "content": "You are an AI assistant that maintains concise user contexts."},
+            {"role": "system", "content": "You are an AI assistant that maintains comprehensive user contexts."},
             {"role": "user", "content": f"""
 Current context for {user_full_name} (ID: {user_id}):
 {current_context}
@@ -78,24 +73,37 @@ Current context for {user_full_name} (ID: {user_id}):
 New message:
 {message_text}
 
-Analyze this message and decide if the user's context needs updating. If yes, call update_user_context with a new, concise context (max 30 phrases). If no update is needed, call do_nothing.
-Try not to rewrite the context completely, more adding if possible.
+Analyze this message and decide if the user's context needs updating. If yes, call update_user_context with a new, comprehensive context. If no update is needed, call do_nothing.
+
+When updating the context, consider the following aspects of a user profile:
+1. Demographics: Age, gender, location, occupation, education level
+2. Interests and Hobbies: Both general and specific areas of interest
+3. Skills and Expertise: Professional and personal competencies
+4. Communication Style: Formal/informal, verbose/concise, use of emojis/slang
+5. Behavioral Patterns: Frequency of interaction, types of queries/requests
+6. Preferences: Likes, dislikes, preferred topics or interaction styles
+7. Goals and Motivations: Short-term and long-term objectives
+8. Pain Points or Challenges: Issues the user frequently encounters or asks about
+9. Technology Usage: Devices, platforms, or software they commonly use
+10. Language Proficiency: Native language, other languages spoken
+11. Cultural Background: Relevant cultural influences or references
+12. Relationship Status: Single, married, family situation if relevant
+13. Personality Traits: Extrovert/introvert, analytical/creative, etc.
+14. Values and Beliefs: Important principles or ideologies they adhere to
+15. Recent Life Events: Significant occurrences that might affect their context
 
 Rules for context updates:
-1. Keep it under 150 characters.
-2. Focus on key traits, interests, or behaviors.
-3. Use short phrases separated by semicolons.
-4. Include the user's name and ID at the start.
-5. Prioritize recent or recurring information.
-6. Remove outdated or less relevant details.
+1. Keep it concise yet informative, aiming for 200-300 characters.
+2. Use short phrases separated by semicolons.
+3. Include the user's name and ID at the start.
+4. Prioritize recent or recurring information.
+5. Remove outdated or less relevant details.
+6. Balance between stability (not changing too much) and capturing new insights.
 
 Example format:
-John Doe (123): Python dev; coffee lover; frequent joke teller; interested in AI; ...
+John Doe (123): 35yo software engineer; Python expert; AI enthusiast; informal communicator; daily user; seeking career growth; struggles with work-life balance; Linux user; fluent in English and Spanish; introverted; values continuous learning
 
-Other users' contexts:
-{json.dumps({k: v for k, v in self.user_contexts.items() if k != user_id}, indent=2)}
-
-Maintain similar conciseness for all users.
+Maintain similar comprehensiveness while adapting to the user's unique characteristics.
 """}
         ]
 
@@ -111,24 +119,15 @@ Maintain similar conciseness for all users.
         tool_calls = response_message.tool_calls
 
         if tool_calls:
-            available_functions: Dict[str, Callable] = {
-                "update_user_context": self.update_user_context,
-                "do_nothing": self.do_nothing,
-            }
-
             for tool_call in tool_calls:
                 function_name = tool_call.function.name
-                function_to_call = available_functions[function_name]
                 function_args = json.loads(tool_call.function.arguments)
 
                 if function_name == "update_user_context":
-                    function_to_call(
-                        user_id=function_args.get("user_id"),
-                        new_context=function_args.get("new_context"),
-                    )
-                    return f"Updated context for user {user_id}: {function_args.get('new_context')}"
+                    new_context = function_args.get("new_context")
+                    self.update_user_context(user_id, new_context)
+                    return f"Updated context for user {user_id}: {new_context}"
                 elif function_name == "do_nothing":
-                    function_to_call()
                     return "No update needed"
 
         return "No action taken"

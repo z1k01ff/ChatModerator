@@ -25,3 +25,4 @@ fastapi
 uvicorn
 asyncpg
 emoji
+apscheduler

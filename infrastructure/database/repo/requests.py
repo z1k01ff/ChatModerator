@@ -99,6 +99,21 @@ class RatingUsersRepo:
         )
         result = await self.session.execute(stmt)
         return result.all()
+    
+    async def get_bot_chats(self):
+        stmt = select(RatingUsers.chat_id.distinct())
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_top_by_rating_for_chat(self, chat_id: int, limit: int = 50):
+        stmt = select(RatingUsers.user_id, RatingUsers.rating).where(RatingUsers.chat_id == chat_id).order_by(RatingUsers.rating.desc()).limit(limit)
+        result = await self.session.execute(stmt)
+        return result.all()
+
+    async def update_rating_by_user_id_for_chat(self, user_id: int, chat_id: int, new_rating: int):
+        stmt = update(RatingUsers).where(RatingUsers.user_id == user_id, RatingUsers.chat_id == chat_id).values(rating=new_rating)
+        await self.session.execute(stmt)
+        await self.session.commit()
 
 
 class MessageUserRepo:
@@ -159,3 +174,4 @@ class RequestsRepo:
 #         # Async function to create tables
 #         async with self.engine.begin() as conn:
 #             await conn.run_sync(Base.metadata.create_all)
+
