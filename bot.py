@@ -1,4 +1,5 @@
 import asyncio
+import random
 from elevenlabs.client import AsyncElevenLabs
 import logging
 
@@ -32,12 +33,13 @@ from tgbot.middlewares.ratings_cache import (
 from tgbot.middlewares.throttling import ThrottlingMiddleware
 from tgbot.misc.default_commands import set_default_commands
 from tgbot.services import broadcaster
+from tgbot.misc.phrases import bot_startup_phrases
 from aiogram.client.default import DefaultBotProperties
 
 
 async def on_startup(bot: Bot, config: Config, client: Client) -> None:
     admin_ids = config.tg_bot.admin_ids
-    await broadcaster.broadcast(bot, admin_ids, "Бот був запущений")
+    await broadcaster.broadcast(bot, admin_ids, random.choice(bot_startup_phrases))
     await set_default_commands(bot)
     await client.start()
 

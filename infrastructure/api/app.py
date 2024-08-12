@@ -83,9 +83,9 @@ def calculate_winnings(result: List[str], stake: int) -> int:
         multiplier = {
             "7️⃣": 1000,
             "🎰": 200,
-            "🍇": 30,
-            "🍒": 15,
-            "🍋": 10,
+            "🍇": 25,
+            "🍒": 13,
+            "🍋": 8,
         }.get(symbol, 0)
         return stake * multiplier
     return 0
@@ -101,10 +101,16 @@ async def get_balance(user_id: int):
 
 @router.post("/spin", response_model=SpinResponse)
 async def spin(request: SpinRequest):
+    print(request.model_dump())
     check_rate_limit(request.user_id)
 
     if not request.InitData or not validate_telegram_data(request.InitData):
         raise HTTPException(status_code=400, detail="Invalid initData")
+    
+    init_data = parse_init_data(request.InitData)
+    user = json.loads(init_data.get("user", "{}"))
+    if user.get("id") != request.user_id:
+        raise HTTPException(status_code=400, detail="User ID mismatch")
 
     if request.stake <= 0:
         raise HTTPException(status_code=400, detail="Stake must be positive")
@@ -121,6 +127,7 @@ async def spin(request: SpinRequest):
         newBalance = current_balance - request.stake + winAmount
         action = "win" if winAmount > 0 else "lose"
 
+        print(f"Result: {result}, action: {action}, winAmount: {winAmount}, newBalance: {newBalance}")
         await update_user_balance(request.user_id, newBalance, repo)
 
         data = parse_init_data(request.InitData)

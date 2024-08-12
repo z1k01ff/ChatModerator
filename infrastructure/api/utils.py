@@ -19,7 +19,6 @@ def parse_init_data(init_data: str = None) -> dict:
 
 def validate_telegram_data(init_data: str) -> bool:
     parsed_data = parse_init_data(init_data)
-
     received_hash = parsed_data.pop("hash")
     # Constructing the data-check-string
     fields = sorted(

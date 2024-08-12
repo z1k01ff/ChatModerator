@@ -1,7 +1,9 @@
 from collections import deque
+from datetime import datetime
 import json
 import logging
 import random
+from zoneinfo import ZoneInfo
 from emoji import EMOJI_DATA
 import pycountry
 
@@ -34,7 +36,9 @@ from tgbot.services.ai_service.ai_conversation import AIConversation
 from tgbot.services.ai_service.anthropic_provider import (
     AnthropicProvider,
 )
+from tgbot.services.ai_service.history_analysis import format_summary, summarize_chat_history
 from tgbot.services.ai_service.openai_provider import OpenAIProvider
+from tgbot.services.ai_service.user_context import AIUserContextManager
 from tgbot.services.payments import payment_keyboard
 from tgbot.services.token_usage import Sonnet
 from pyrogram.types import Message as PyrogramMessage
@@ -91,17 +95,22 @@ def parse_multiple_command(command: CommandObject | None) -> tuple[int, str]:
 
 def format_message(msg: Union[dict, PyrogramMessage]) -> str:
     if isinstance(msg, dict):
-        return f"""<time>{msg['date']}</time><user>{msg['user']}</user>:<message>{msg['content']}</message><message_url>{msg['url']}</message_url>"""
+        date = datetime.fromisoformat(msg['date']).replace(tzinfo=ZoneInfo("UTC"))
+        kyiv_date = date.astimezone(ZoneInfo("Europe/Kiev"))
+        formatted_date = kyiv_date.strftime("%Y-%m-%d %H:%M")
+        return f"""<time>{formatted_date}</time><user>{msg['user']}</user>:<message>{msg['content']}</message><message_url>{msg['url']}</message_url>"""
     else:
-        date = msg.date.strftime("%Y-%m-%d %H:%M")
+        utc_date = msg.date.replace(tzinfo=ZoneInfo("UTC"))
+        kyiv_date = utc_date.astimezone(ZoneInfo("Europe/Kiev"))
+        formatted_date = kyiv_date.strftime("%Y-%m-d %H:%M")
         user = (
-            f"{msg.from_user.first_name or ''}{msg.from_user.last_name or ''}"
+            f"{msg.from_user.first_name or ''} {msg.from_user.last_name or ''}"
             if msg.from_user
             else "unknown"
-        )
+        ).strip()
         content = msg.text or msg.caption or ""
-        return f"""<time>{date}</time><user>{user}</user>:<message>{content}</message><message_url>{msg.link}</message_url>"""
-
+        username = f"@{msg.from_user.username}" or ""
+        return f"""<time>{formatted_date}</time><user>{user} {username}</user>:<message>{content}</message><message_url>{msg.link}</message_url>"""
 
 def should_include_message(msg: Union[dict, PyrogramMessage], with_bot: bool) -> bool:
     if isinstance(msg, dict):
@@ -131,6 +140,7 @@ async def summarize_and_update_history(
     state: FSMContext,
     bot: Bot,
     ai_client: AsyncOpenAI,
+    messages_to_summarize: list|None =None,
     with_bot: bool = True,
     notification: str = "",
 ) -> None:
@@ -142,8 +152,11 @@ async def summarize_and_update_history(
     if not messages_history:
         await message.answer("Немає історії повідомлень.")
         return
+    if not messages_to_summarize:
+        messages_history = json.loads(messages_history)
+    else:
+        messages_history = messages_to_summarize
 
-    messages_history = json.loads(messages_history)
 
     # Filter messages that were not covered in the previous history message
     if last_history_message_id:
@@ -153,7 +166,7 @@ async def summarize_and_update_history(
         chat_id = str(message.chat.id)[4:]
         last_summarized_message = hlink(
             "👇Останнє повідомлення з історією", f"https://t.me/c/{chat_id}/{last_summarized_id}"
-        )
+        ) + "\n\n"
     else:
         last_summarized_message = ""
 
@@ -167,84 +180,13 @@ async def summarize_and_update_history(
 
     formatted_history = format_messages_history(messages_history, with_bot=with_bot)
 
-    ai_conversation = AIConversation(
-        bot=bot,
-        storage=state.storage,
-        ai_provider=OpenAIProvider(
-            client=ai_client,
-            model_name="gpt-4o-mini",
-        ),
-system_message="""
-You are a professional conversation summarizer. Your task is to analyze the entire chat history and identify the most significant topics discussed. Please follow these guidelines:
-
-Create a list of bullet points summarizing the main topics in Ukrainian.
-
-Important rules:
-- Provide the date and time of the earliest message in the format "YYYY-MM-DD HH:MM".
-- Format each bullet point as follows:
-- • <a href='{earliest_message_url}'>{EMOJI} {TOPIC}</a>
-- Make sure to close all 'a' tags properly.
-- The {earliest_message_url} should point to the first message where the topic was mentioned.
-- Include an appropriate emoji that represents the topic at the beginning of each summary.
-- Mention the names of users who participated in the discussion of each topic.
-- Summarize the content; do not copy messages verbatim.
-- List at least 10 distinct topics.
-- Ensure each topic description is unique and informative.
-- Cover all major topics discussed in the chat, not individual messages.
-- Each topic should encompass at least 3 messages and not be a direct quote. If a user has left one message without any replies, it should not be considered a topic.
-- Focus on substantial discussions rather than brief exchanges.
-- Use message_ids for the URL to ensure the correct message is linked (the first one).
-- Categorize the topics based on the timestamp of each message into four time periods:
-    Morning: 06:00:00 to 11:59:59
-    Afternoon: 12:00:00 to 17:59:59
-    Evening: 18:00:00 to 23:59:59
-    Night: 00:00:00 to 05:59:59
-
-    Use the local time zone provided in the message timestamps for categorization.
-    If a conversation spans multiple days, start a new day's categorization with "Morning" at 06:00:00.
-    Present the summarized topics under their respective time period headings in chronological order.
-    If no messages occur during a particular time period, omit that period from the summary.
-
-Example input and output format:
-<example_input>
-<time>2024-03-15 10:05</time><user>Alex Smith</user>:<message>Hey, does anyone know how we can request the history of this chat? I need it for our monthly review.</message><message_url>https://t.me/bot_devs_novice/914528</message_url>
-<time>2024-03-15 10:06</time><user>Maria Jones</user>:<message>@Alex Sith, I think you can use the chat history request feature in the settings. Just found a link about it.</message><message_url>https://t.me/bot_devs_novice/914529</message_url>
-<time>2024-03-15 10:08</time><user>John Doe</user>:<message>Correct, @Maria Jones. Also, ensure that you have the admin rights to do so. Sometimes permissions can be tricky.</message><message_url>https://t.me/bot_devs_novice/914530</message_url>
-<time>2024-03-15 11:00</time><user>Emily Clark</user>:<message>Has anyone noticed a drop in subscribers after enabling the new feature on the OpenAI chatbot?</message><message_url>https://t.me/bot_devs_novice/914531</message_url>
-<time>2024-03-15 11:02</time><user>Lucas Brown</user>:<message>Yes, @Emily Clark, we experienced the same issue. It seems like the auto-reply feature might be a bit too aggressive.</message><message_url>https://t.me/bot_devs_novice/914532</message_url>
-<time>2024-03-15 11:05</time><user>Sarah Miller</user>:<message>I found a workaround for it. Adjusting the sensitivity settings helped us retain our subscribers. Maybe give that a try?</message><message_url>https://t.me/bot_devs_novice/914533</message_url>
-<time>2024-03-15 22:00</time><user>Kevin White</user>:<message>Hey all, don't forget to vote for the DFS feature! There are rewards for participation.</message><message_url>https://t.me/bot_devs_novice/914534</message_url>
-<time>2024-03-15 22:02</time><user>Rachel Green</user>:<message>@Kevin White, just voted! Excited about the rewards. Does anyone know when they will be distributed?</message><message_url>https://t.me/bot_devs_novice/914535</message_url>
-<time>2024-03-15 22:04</time><user>Leo Thompson</user>:<message>Usually, rewards get distributed a week after the voting ends. Can't wait to see the new features in action!</message><message_url>https://t.me/bot_devs_novice/914536</message_url>
-</example_input>
-<example_format>
-Нижче наведено вичерпний перелік обговорюваних у цьому чаті тем:
-Зранку:
-• <a href='https://t.me/bot_devs_novice/914528'>10:00 - 📔 Alex Smith запитав історію чату</a>
-• <a href='https://t.me/bot_devs_novice/914531'>11:00 - 😢 Emily Clark поскаржилася на втрату підписників чат-ботом OpenAI через певну функцію</a>
-Ввечері:
-• <a href='https://t.me/bot_devs_novice/914534'>22:00 - 🏆 Kevin White попросив взяти участь у голосуванні за DFS та винагороди за участь</a>
-...
-Наперше повідомлення датується 2024-03-15 08:13.
-</example_format>
-""",
-        max_tokens=2000,
-    )
-    ai_conversation.add_user_message(
-        text=f"Summarize the chat history\n{formatted_history}"
-    )
-
-    sent_message = await message.answer("⏳", reply_to_message_id=message.message_id)
+    sent_message = await message.answer("⏳ Аналізую історію повідомлень...")
 
     try:
-        response = await ai_conversation.answer_with_ai(
-            message,
-            sent_message,
-            notification=notification + f"\n{last_summarized_message}",
-            apply_formatting=False,
-        )
-        
+        response = await summarize_chat_history(chat_history=formatted_history, client=ai_client, num_topics=len(messages_history) // 40)
         if response:
+            text = last_summarized_message + format_summary(response)
+            await sent_message.edit_text(text, disable_web_page_preview=True)
             # Update the last history message ID
             await state.update_data(last_history_message_id=new_last_history_message_id, last_summarized_id=sent_message.message_id)
     except Exception as e:
@@ -395,6 +337,8 @@ def get_system_message(
     long: bool = True,
     content_type: str = "text",
     ai_mode: Literal["NASTY", "GOOD", "YANUKOVICH", "MANIPUlATOR"] = "GOOD",
+        user_contexts: str = "",
+    
 ) -> str:
     personality = {
         "NASTY": NASTY_MODE,
@@ -411,6 +355,9 @@ People speak on wide range of topics.
 There is a {content_type} in the message.
 
 There are funny commands: to measure the penis of a participant; to determine the nationality, or sexual orientation with commands: /biba, /nation, /gay
+
+User Contexts:
+{user_contexts}
 </chat_context>"""
 
     rating_system = """<rating_system>
@@ -590,12 +537,17 @@ async def ask_ai(
 
     long_answer = command is not None
 
+    user_context_manager = AIUserContextManager(openai_client)
+    await user_context_manager.load_contexts(state)
+    user_contexts = user_context_manager.get_all_contexts()
+
     system_message = get_system_message(
         message.chat.title,
         actor_name,
         long=long_answer,
         content_type=message.content_type,
         ai_mode=ai_mode,
+        user_contexts=user_contexts,
     )
 
     logging.info(f"System message: {system_message}")
@@ -989,11 +941,24 @@ async def history_worker(
     if ai_mode == "OFF":
         return
 
+    user_context_manager = AIUserContextManager(openai_client)
+    await user_context_manager.load_contexts(state)
+    
+    user_id = message.from_user.id
+    user_full_name = message.from_user.full_name
+    message_text = message.text or message.caption or ""
+
+    if len(message_text) > 75 and not message.forward_origin:
+        result = await user_context_manager.analyze_and_update_context(user_id, user_full_name, message_text[:700] + "...")
+        logging.info(f"Context analysis result: {result}")  # For debugging purposes
+
+        await user_context_manager.save_contexts(state)
+
     if message.message_id - last_summarized_id >= 400:
         # Filter messages that were not covered in the previous history message
         messages_to_summarize = [msg for msg in messages_history if msg['message_id'] > last_history_message_id]
         
-        if len(messages_to_summarize) >= 10:
+        if len(messages_to_summarize) >= 300:
             await summarize_and_update_history(
-                message, state, bot, openai_client, with_bot=False
+                message, state, bot, openai_client, with_bot=False, messages_to_summarize=messages_to_summarize
             )
