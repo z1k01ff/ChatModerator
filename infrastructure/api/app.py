@@ -83,9 +83,9 @@ def calculate_winnings(result: List[str], stake: int) -> int:
         multiplier = {
             "7️⃣": 1000,
             "🎰": 200,
-            "🍇": 25,
-            "🍒": 13,
-            "🍋": 8,
+            "🍇": 20,
+            "🍒": 12,
+            "🍋": 7,
         }.get(symbol, 0)
         return stake * multiplier
     return 0

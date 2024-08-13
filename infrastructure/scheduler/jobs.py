@@ -1,3 +1,4 @@
+from aiogram.utils.markdown import hbold
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
@@ -51,15 +52,15 @@ async def apply_rating_inflation(bot: Bot, session_pool: async_sessionmaker, sto
                 reduced_ratings.append((chat_id, chat_reduced_ratings))
 
     # Формуємо повідомлення
-    message = "📉 Щоденний звіт про інфляцію рейтингу 📉\n\n"
+    message = hbold("📉 Щоденний звіт про інфляцію рейтингу 📉\n\n")
     for chat_id, chat_reduced_ratings in reduced_ratings:
         chat_name = await get_chat_name(bot, chat_id)
-        message += f"Чат: {chat_name}\n"
-        message += "Користувачі зі зниженим рейтингом (Топ 40):\n"
+        message += f"Чат: {chat_name}\n\n"
+        message += "Користувачам було знижено рейтинг (Топ 40):\n"
         for user_profile, old_rating, new_rating in sorted(chat_reduced_ratings, key=lambda x: x[2], reverse=True)[:40]:
-            message += f"{user_profile}: {old_rating} → {new_rating} (-{old_rating - new_rating})\n"
+            message += f"{user_profile}: {old_rating} → {new_rating} (🔻{old_rating - new_rating})\n"
         message += "\n"
-
+    message += "\n\n💡 Щоб уникнути зниження рейтнгу необхідно спілкуватися в чаті кожен день."
     # Надсилаємо повідомлення
     for chat_id, _ in reduced_ratings:
         try:
@@ -81,7 +82,7 @@ async def get_chat_name(bot: Bot, chat_id: int) -> str:
 def setup_rating_inflation_task(scheduler: AsyncIOScheduler, bot: Bot, session_pool: async_sessionmaker, storage: RedisStorage):
     scheduler.add_job(
         apply_rating_inflation,
-        trigger=CronTrigger(hour=13, minute=0),  # Run every day at 13:00
+        trigger=CronTrigger(hour=10, minute=0),  # Run every day at 13:00
         # For testing purposes, run every min
         # trigger=CronTrigger(minute="*/1"),
         args=[bot, session_pool, storage],

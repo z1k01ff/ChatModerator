@@ -120,9 +120,9 @@ async def get_top(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
                 for number, (rating, change, profile) in enumerate(league, 1)
             ]
         )
-        return f"<b>{league_name}:</b>\n{formatted_entries}"
+        return f"<blockquote expandable><b>{league_name}:</b>\n{formatted_entries}</blockquote>"
 
-    text = "\n\n".join(
+    text = "\n".join(
         [
             format_league(kings, "Королі", "👑"),
             format_league(sorcerers, "Чаклуни", "🧙‍♂️"),
