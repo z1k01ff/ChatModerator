@@ -58,6 +58,7 @@ def register_global_middlewares(
     session_pool,
     openai_client,
     storage,
+    bot: Bot,
 ):
     """
     Register global middlewares for the given dispatcher.
@@ -76,8 +77,8 @@ def register_global_middlewares(
     for middleware_type in middleware_types:
         dp.message.outer_middleware(middleware_type)
         dp.callback_query.outer_middleware(middleware_type)
-    dp.message.middleware(ThrottlingMiddleware(storage))
-    dp.message_reaction.middleware(ThrottlingMiddleware(storage))
+    dp.message.middleware(ThrottlingMiddleware(storage, bot))
+    dp.message_reaction.middleware(ThrottlingMiddleware(storage, bot))
     dp.update.outer_middleware(DatabaseMiddleware(session_pool))
     dp.message.outer_middleware(MessageUserMiddleware())
     UserActivityMiddleware(storage).setup(dp)
@@ -175,7 +176,7 @@ async def main():
         ai_router,
     )
 
-    register_global_middlewares(dp, config, session_pool, openai_client, storage)
+    register_global_middlewares(dp, config, session_pool, openai_client, storage ,bot=bot)
 
     dp.workflow_data.update(
         ratings_cache=ratings_cache,
@@ -183,7 +184,7 @@ async def main():
         openai_client=openai_client,
         elevenlabs_client=elevenlabs_client,
     )
-    bot.session.middleware(BotMessages(session_pool))
+    bot.session.middleware(BotMessages(session_pool , storage))
     await bot.delete_webhook()
     dp.startup.register(on_startup)
     dp.shutdown.register(shutdown)

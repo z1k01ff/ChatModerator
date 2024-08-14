@@ -113,7 +113,6 @@ async def get_top(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
     def format_league(league, league_name, emoji):
         if not league:
             return ""
-
         formatted_entries = "\n".join(
             [
                 f"<b>{number}) {emoji} " f"{profile} ( {rating} ) {change}</b>"
@@ -122,16 +121,16 @@ async def get_top(m: types.Message, repo: RequestsRepo, bot, state: FSMContext):
         )
         return f"<blockquote expandable><b>{league_name}:</b>\n{formatted_entries}</blockquote>"
 
-    text = "\n".join(
-        [
-            format_league(kings, "Королі", "👑"),
-            format_league(sorcerers, "Чаклуни", "🧙‍♂️"),
-            format_league(hetmans, "Гетьмани", "🦄"),
-            format_league(otamans, "Отамани", "🐘"),
-            format_league(cossacs, "Козаки", "🐥"),
-            format_league(pig_herder, "Свинопаси", "👩‍🌾"),
-        ]
-    )
+    leagues = [
+        (kings, "Королі", "👑"),
+        (sorcerers, "Чаклуни", "🧙‍♂️"),
+        (hetmans, "Гетьмани", "🦄"),
+        (otamans, "Отамани", "🐘"),
+        (cossacs, "Козаки", "🐥"),
+        (pig_herder, "Свинопаси", "👩‍🌾"),
+    ]
+
+    text = "\n".join(filter(bool, [format_league(*league_info) for league_info in leagues]))
 
     # - <b>👑Королі</b>
     text += """

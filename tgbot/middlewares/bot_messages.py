@@ -1,4 +1,5 @@
 import logging
+import time
 
 from aiogram import Bot, types
 from aiogram.client.session.middlewares.base import (
@@ -14,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class BotMessages(BaseRequestMiddleware):
-    def __init__(self, session_pool):
+    def __init__(self, session_pool, storage):
         self.session_pool = session_pool
+        self.storage = storage
 
     async def __call__(
         self,
@@ -25,6 +27,9 @@ class BotMessages(BaseRequestMiddleware):
     ):
         if isinstance(method, SendMessage):
             result: types.Message = await make_request(bot, method)
+            chat_id = result.chat.id
+            user_id = result.from_user.id
+            await self.storage.redis.set(f"user_activity:{chat_id}:{user_id}", int(time.time()), ex=172800)  # TTL: 2 days
             async with self.session_pool() as session:
                 repo = RequestsRepo(session)
                 await repo.message_user.add_message(

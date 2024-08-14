@@ -3,7 +3,7 @@ from contextlib import suppress
 import logging
 from typing import Any, Awaitable, Callable, Dict, Union
 
-from aiogram import BaseMiddleware
+from aiogram import BaseMiddleware, Bot
 from aiogram.dispatcher.flags import get_flag
 from aiogram.types import Message, MessageReactionUpdated
 
@@ -12,12 +12,14 @@ from tgbot.misc.time_utils import format_time
 from aiogram.fsm.storage.redis import RedisStorage
 
 from tgbot.services.broadcaster import send_telegram_action
+from tgbot.services.token_usage import Sonnet, TokenUsageManager
 
 
 class ThrottlingMiddleware(BaseMiddleware):
-    def __init__(self, storage: RedisStorage) -> None:
+    def __init__(self, storage: RedisStorage, bot: Bot) -> None:
         super().__init__()
         self.storage: RedisStorage = storage
+        self.ai_token_usage = TokenUsageManager(storage=storage,bot=bot)
 
     async def _get_throttle_count(self, key: str) -> int:
         count = await self.storage.redis.get(key)
@@ -51,6 +53,9 @@ class ThrottlingMiddleware(BaseMiddleware):
         if self._is_override(data, user_id):
             return await handler(event, data)
 
+        # Check for AI-related flag
+        is_ai_interaction = get_flag(data, "is_ai_interaction")
+
         key_prefix = rate_limit.get("key", "antiflood")
         limit = rate_limit.get("limit", 30)
         max_times = rate_limit.get("max_times", 1)
@@ -61,6 +66,20 @@ class ThrottlingMiddleware(BaseMiddleware):
         current_count = await self._get_throttle_count(key)
         logging.info(f"Current count: {current_count}")
         logging.info(f"Max times: {max_times}")
+    
+        # Handle AI interactions
+        if is_ai_interaction is not None:
+            usage_cost = await self.ai_token_usage.calculate_cost(Sonnet, event.chat.id, user_id)
+            if usage_cost <= 2:
+                logging.info("User is free from rate limit (ai_interaction)")
+                # No rate limit for AI interactions that don't require payment
+                return await handler(event, data)
+            else:
+                # Strict rate limit for AI interactions that require payment
+                logging.info("User has to pay for AI interaction, set limit to 1x5mins")
+                limit = 300  # 5 minutes
+                max_times = 1
+                data["user_needs_to_pay"] = True
 
         if current_count >= max_times:
             remaining_ttl = await self._get_remaining_ttl(key)

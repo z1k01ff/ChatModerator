@@ -22,5 +22,5 @@ async def star_payment(msg: Message, bot: Bot, state):
     )
     await bot.send_message(
         chat_id=group_id,
-        text="Дякуємо! Кількість використання штучного інтелекту успішно скинуто!",
+        text=f"Дякуємо {msg.from_user.full_name} за оплату використання штучного інтелекту!",
     )

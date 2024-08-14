@@ -613,7 +613,7 @@ async def promote_with_title(
     command_parse = re.compile(r"(!title|/title)(@[^\s]+)?( [\w+\D]+)?")
     parsed = command_parse.match(message.text)
     logging.info(parsed.groups())
-    custom_title = parsed.group(3)[:16]
+    custom_title = parsed.group(3)[1:16]
 
     try:
         chat_member = await message.chat.get_member(member_id)

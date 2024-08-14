@@ -12,9 +12,11 @@ class TimeOfDay(str, Enum):
     evening = "evening"
     night = "night"
 
+
+
 class Topic(BaseModel):
     title: str
-    description: str
+    description: str = Field(..., description="A brief description of the topic, like: Костянтин К 🇺🇦 і NN ведуть суперечку про соціалізм, суперечливі думки від El.")
     message_link: str
     time: str = Field(..., description="The time of the topic in 'HH:MM' format")
 
@@ -48,6 +50,7 @@ Your task is to analyze the given chat history and produce a structured summary.
 Create a list summarizing the main topics using Ukrainian language.
 Follow these guidelines:
 - Group topics by date and time of day (morning: 06:00-11:59, afternoon: 12:00-17:59, evening: 18:00-23:59, night: 00:00-05:59)
+- Each summary object contains a list of topics in chronological order.
 - Each topic should have a concise title, brief description, message link, and time
 - The link should point to the EARLIEST message in the topic.
 - Focus on significant discussions, not individual messages

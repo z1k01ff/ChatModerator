@@ -85,7 +85,6 @@ class AIConversation(TokenUsageManager):
             apply_formatting,
             with_tts=with_tts,
         )
-
         await sent_message.edit_text(
             f"{notification}\n\n{final_text}",
             parse_mode="HTML",
@@ -94,7 +93,9 @@ class AIConversation(TokenUsageManager):
         )
         logging.info(f"AI: {final_text}")
         await message.react(reaction=[ReactionTypeEmoji(emoji="👨‍💻")], is_big=True)
-        return AIResponse(text=final_text, usage=len(final_text.split()))
+        total_characters = len(self.conversation_log + self.system_message + final_text)
+        logging.info(f"Total characters: {total_characters} used")
+        return AIResponse(text=final_text, usage=int(total_characters*0.75))
 
     async def _stream_response(
         self,

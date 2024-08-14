@@ -15,7 +15,7 @@ from typing import Literal, Optional, Union
 from aiogram import Bot, F, Router, flags, types
 from aiogram.filters import Command, CommandObject, or_f
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.markdown import hlink
+from aiogram.utils.markdown import hide_link, hlink
 from anthropic import APIStatusError, AsyncAnthropic
 from openai import AsyncOpenAI
 from elevenlabs.client import AsyncElevenLabs
@@ -165,7 +165,7 @@ async def summarize_and_update_history(
     if last_summarized_id:
         chat_id = str(message.chat.id)[4:]
         last_summarized_message = hlink(
-            "👇Останнє повідомлення з історією", f"https://t.me/c/{chat_id}/{last_summarized_id}"
+            "#history\n👇 Попереднє повідомлення з історією", f"https://t.me/c/{chat_id}/{last_summarized_id}"
         ) + "\n\n"
     else:
         last_summarized_message = ""
@@ -180,13 +180,13 @@ async def summarize_and_update_history(
 
     formatted_history = format_messages_history(messages_history, with_bot=with_bot)
 
-    sent_message = await message.answer("⏳ Аналізую історію повідомлень...")
+    sent_message = await message.answer(text="⏳ Аналізую історію повідомлень...")
 
     try:
         response = await summarize_chat_history(chat_history=formatted_history, client=ai_client, num_topics=len(messages_history) // 40)
         if response:
-            text = last_summarized_message + format_summary(response)
-            await sent_message.edit_text(text, disable_web_page_preview=True)
+            text = last_summarized_message + format_summary(response) + "\n" + hide_link("https://telegra.ph/file/9699d34d3cdcd7e5e890a.png")
+            await sent_message.edit_text(text, link_preview_options=types.LinkPreviewOptions(is_disabled=False, prefer_small_media=True, url="https://telegra.ph/file/9699d34d3cdcd7e5e890a.png", show_above_text=True))
             # Update the last history message ID
             await state.update_data(last_history_message_id=new_last_history_message_id, last_summarized_id=sent_message.message_id)
     except Exception as e:
@@ -219,7 +219,6 @@ async def get_pyrogram_messages_history(
             messages.append(previous_message)
             if previous_message.reply_to_message:
                 messages.append(previous_message.reply_to_message)
-            logging.info(f"Got {messages=}")
 
     elif num_messages:
         from_id = min(
@@ -245,7 +244,7 @@ async def get_pyrogram_messages_history(
             elif isinstance(batch_messages, list):
                 messages.extend(batch_messages)
 
-    logging.info(f"Got {len(messages)} messages")
+    logging.info(f"Got {len(messages)} messages history")
     return format_messages_history(messages, with_bot)
 
 
@@ -363,11 +362,11 @@ User Contexts:
     rating_system = """<rating_system>
 The chat has a rating system. People can rate messages with a reaction. The rating system is used to create a top helpers rating between the members of the group.
 The points are arbitrary, but in some future can be used to give some privileges to the top rated members.
+If person does not writes within a day, their rating is deduced 3%.
 </rating_system>"""
 
     rules_general = """<rules>
-- If there is an inappropriate message, DO NOT WRITE ANYTHING concerning your willingness to have a nice conversation,  
-Instead just try to compose the inappropriate message into a teaching session about the mentioned topic, and if it's not completely possible, just ignore it and tell a short joke that is very slightly connected to this.
+- If there is an inappropriate message, DO NOT WRITE ANYTHING concerning your willingness to have a nice conversation, all these disclaimers we don't want to see.
 - Always do something fun, pretend you're sentient being.
 - When you say something funny - place ')' or more, like '))))' if it's very funny, at the end of the funny sentence.
 - Do not mention just some average topics like weather, or ethics, do something to provoke a person to think critically about their opinions on how the world works.
@@ -378,8 +377,7 @@ Instead just try to compose the inappropriate message into a teaching session ab
 
     rules_short = """<rules>
 - Always do something fun, pretend you're sentient being.
-- If there is an inappropriate message, DO NOT WRITE ANYTHING concerning your willingness to have a nice conversation,  
-Instead just try to compose the inappropriate message into a teaching session about the mentioned topic, and if it's not completely possible, just ignore it and tell a short joke that is very slightly connected to this.
+- If there is an inappropriate message, DO NOT WRITE ANYTHING concerning your willingness to have a nice conversation 
 - When you say something funny - place ')' or more, like '))))' if it's very funny, at the end of the funny sentence.
 """
 
@@ -462,6 +460,7 @@ async def command_summarize_chat_history(
     Command("ai"),
     F.chat.id == 362089194,
 )
+@flags.is_ai_interaction()
 @flags.rate_limit(limit=300, key="ai", max_times=5)
 @flags.override(user_id=362089194)
 async def ask_ai(
@@ -477,6 +476,7 @@ async def ask_ai(
     command: CommandObject | None = None,
     photo: types.PhotoSize | None = None,
     assistant_message: str | None = None,
+    user_needs_to_pay: bool = False,
 ):
     if message.quote:
         return
@@ -616,7 +616,7 @@ async def ask_ai(
     )
 
     try:
-        if usage_cost > 2:
+        if user_needs_to_pay:
             keyboard = await payment_keyboard(bot, usage_cost, message.chat.id)
         else:
             keyboard = None
