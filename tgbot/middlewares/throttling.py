@@ -74,6 +74,8 @@ class ThrottlingMiddleware(BaseMiddleware):
                 logging.info("User is free from rate limit (ai_interaction)")
                 # No rate limit for AI interactions that don't require payment
                 return await handler(event, data)
+            elif event.quote:
+                return
             else:
                 # Strict rate limit for AI interactions that require payment
                 logging.info("User has to pay for AI interaction, set limit to 1x5mins")
