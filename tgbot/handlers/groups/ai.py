@@ -36,7 +36,10 @@ from tgbot.services.ai_service.ai_conversation import AIConversation
 from tgbot.services.ai_service.anthropic_provider import (
     AnthropicProvider,
 )
-from tgbot.services.ai_service.history_analysis import format_summary, summarize_chat_history
+from tgbot.services.ai_service.history_analysis import (
+    format_summary,
+    summarize_chat_history,
+)
 from tgbot.services.ai_service.openai_provider import OpenAIProvider
 from tgbot.services.ai_service.user_context import AIUserContextManager
 from tgbot.services.payments import payment_keyboard
@@ -95,7 +98,7 @@ def parse_multiple_command(command: CommandObject | None) -> tuple[int, str]:
 
 def format_message(msg: Union[dict, PyrogramMessage]) -> str:
     if isinstance(msg, dict):
-        date = datetime.fromisoformat(msg['date']).replace(tzinfo=ZoneInfo("UTC"))
+        date = datetime.fromisoformat(msg["date"]).replace(tzinfo=ZoneInfo("UTC"))
         kyiv_date = date.astimezone(ZoneInfo("Europe/Kiev"))
         formatted_date = kyiv_date.strftime("%Y-%m-%d %H:%M")
         return f"""<time>{formatted_date}</time><user>{msg['user']}</user>:<message>{msg['content']}</message><message_url>{msg['url']}</message_url>"""
@@ -111,6 +114,7 @@ def format_message(msg: Union[dict, PyrogramMessage]) -> str:
         content = msg.text or msg.caption or ""
         username = f"@{msg.from_user.username}" or ""
         return f"""<time>{formatted_date}</time><user>{user} {username}</user>:<message>{content}</message><message_url>{msg.link}</message_url>"""
+
 
 def should_include_message(msg: Union[dict, PyrogramMessage], with_bot: bool) -> bool:
     if isinstance(msg, dict):
@@ -140,7 +144,7 @@ async def summarize_and_update_history(
     state: FSMContext,
     bot: Bot,
     ai_client: AsyncOpenAI,
-    messages_to_summarize: list|None =None,
+    messages_to_summarize: list | None = None,
     with_bot: bool = True,
     notification: str = "",
 ) -> None:
@@ -157,25 +161,35 @@ async def summarize_and_update_history(
     else:
         messages_history = messages_to_summarize
 
-
     # Filter messages that were not covered in the previous history message
     if last_history_message_id:
-        messages_history = [msg for msg in messages_history if msg['message_id'] > last_history_message_id]
+        messages_history = [
+            msg
+            for msg in messages_history
+            if msg["message_id"] > last_history_message_id
+        ]
 
     if last_summarized_id:
         chat_id = str(message.chat.id)[4:]
-        last_summarized_message = hlink(
-            "#history\n👇 Попереднє повідомлення з історією", f"https://t.me/c/{chat_id}/{last_summarized_id}"
-        ) + "\n\n"
+        last_summarized_message = (
+            "#history\n"
+            + hlink(
+                "👇 Попереднє повідомлення з історією",
+                f"https://t.me/c/{chat_id}/{last_summarized_id}",
+            )
+            + "\n\n"
+        )
     else:
         last_summarized_message = ""
 
     # Check if there are at least 10 messages
     if len(messages_history) < 50:
-        await message.answer(f"Недостатньо повідомлень для створення історії.\n{last_summarized_message}")
+        await message.answer(
+            f"Недостатньо повідомлень для створення історії.\n{last_summarized_message}"
+        )
         return
 
-    new_last_history_message_id = max(msg['message_id'] for msg in messages_history)
+    new_last_history_message_id = max(msg["message_id"] for msg in messages_history)
     await state.update_data(last_history_message_id=new_last_history_message_id)
 
     formatted_history = format_messages_history(messages_history, with_bot=with_bot)
@@ -183,12 +197,32 @@ async def summarize_and_update_history(
     sent_message = await message.answer(text="⏳ Аналізую історію повідомлень...")
 
     try:
-        response = await summarize_chat_history(chat_history=formatted_history, client=ai_client, num_topics=len(messages_history) // 40)
+        response = await summarize_chat_history(
+            chat_history=formatted_history,
+            client=ai_client,
+            num_topics=len(messages_history) // 40,
+        )
         if response:
-            text = last_summarized_message + format_summary(response) + "\n" + hide_link("https://telegra.ph/file/9699d34d3cdcd7e5e890a.png")
-            await sent_message.edit_text(text, link_preview_options=types.LinkPreviewOptions(is_disabled=False, prefer_small_media=True, url="https://telegra.ph/file/9699d34d3cdcd7e5e890a.png", show_above_text=True))
+            text = (
+                last_summarized_message
+                + format_summary(response)
+                + "\n"
+                + hide_link("https://telegra.ph/file/9699d34d3cdcd7e5e890a.png")
+            )
+            await sent_message.edit_text(
+                text,
+                link_preview_options=types.LinkPreviewOptions(
+                    is_disabled=False,
+                    prefer_small_media=True,
+                    url="https://telegra.ph/file/9699d34d3cdcd7e5e890a.png",
+                    show_above_text=True,
+                ),
+            )
             # Update the last history message ID
-            await state.update_data(last_history_message_id=new_last_history_message_id, last_summarized_id=sent_message.message_id)
+            await state.update_data(
+                last_history_message_id=new_last_history_message_id,
+                last_summarized_id=sent_message.message_id,
+            )
     except Exception as e:
         logging.error(f"Error in summarize_and_update_history: {e}")
         await sent_message.edit_text(
@@ -330,14 +364,14 @@ async def get_messages_history(
 
     return formatted_history[:limit]
 
+
 def get_system_message(
     chat_title: str,
     actor_name: str,
     long: bool = True,
     content_type: str = "text",
     ai_mode: Literal["NASTY", "GOOD", "YANUKOVICH", "MANIPUlATOR"] = "GOOD",
-        user_contexts: str = "",
-    
+    user_contexts: str = "",
 ) -> str:
     personality = {
         "NASTY": NASTY_MODE,
@@ -418,6 +452,7 @@ There is {reply_content_type} in replied message.
 
     return f"{reply_context}{messages_history}{prompt}"
 
+
 async def get_notification(usage_cost: float) -> str:
     if usage_cost > 0.5:
         return f"⚠️ За весь час ви вже використали ${usage_cost}, будь ласка задонатьте трошки {hlink('сюди', 'https://send.monobank.ua/8JGpgvcggd')}"
@@ -453,9 +488,7 @@ async def command_summarize_chat_history(
 @ai_router.message(
     Command("ai", magic=F.args.regexp(MULTIPLE_MESSAGES_REGEX)),
 )
-@ai_router.message(
-    Command("ai")
-)
+@ai_router.message(Command("ai"))
 @ai_router.message(
     Command("ai"),
     F.chat.id == 362089194,
@@ -561,7 +594,7 @@ async def ask_ai(
             message.reply_to_message.content_type if message.reply_to_message else None
         ),
         messages_history=messages_history,
-)
+    )
 
     ai_conversation = AIConversation(
         bot=bot,
@@ -747,6 +780,7 @@ async def determine_nationality(
             "An error occurred while processing the request. Please try again later."
         )
 
+
 @ai_router.message(Command("taro"))
 @flags.rate_limit(limit=120, key="taro")
 @flags.override(user_id=362089194)
@@ -761,7 +795,7 @@ async def taro_reading(
         client=anthropic_client,
         model_name="claude-3-5-sonnet-20240620",
     )
-    
+
     # question = command.args
     if command and command.args:
         question = command.args
@@ -772,21 +806,19 @@ async def taro_reading(
         return
 
     sent_message = await message.reply("🔮 Розкладаю карти Таро...")
-    
+
     # Select a random emoji from all available emojis
     emoji = random.choice(list(EMOJI_DATA.keys()))
-    
+
     ai_conversation = AIConversation(
         bot=bot,
         ai_provider=ai_provider,
         storage=state.storage,
-        system_message=TARO_MODE.format(
-            emoji=emoji, question=question
-        ),
+        system_message=TARO_MODE.format(emoji=emoji, question=question),
         max_tokens=400,
         temperature=0.7,
     )
-    
+
     ai_conversation.add_user_message(text=f"/taro {question}")
     usage_cost = await ai_conversation.calculate_cost(
         Sonnet, message.chat.id, message.from_user.id
@@ -817,6 +849,7 @@ async def taro_reading(
         await sent_message.edit_text(
             "Виникла помилка під час обробки запиту. Будь ласка, спробуйте пізніше."
         )
+
 
 @ai_router.message(Command("gay"))
 @flags.rate_limit(limit=120, key="gay")
@@ -923,10 +956,11 @@ async def history_worker(
 
     new_message = {
         "date": message.date.isoformat(),
-        "user": ( 
-            hd.quote(message.forward_from_chat.full_name) if message.forward_from_chat else
-            hd.quote(message.from_user.full_name)
-            ),
+        "user": (
+            hd.quote(message.forward_from_chat.full_name)
+            if message.forward_from_chat
+            else hd.quote(message.from_user.full_name)
+        ),
         "content": hd.quote(message.text or message.caption or ""),
         "url": message.get_url(),
         "reply_to_id": message.reply_to_message.message_id
@@ -943,22 +977,33 @@ async def history_worker(
 
     user_context_manager = AIUserContextManager(openai_client)
     await user_context_manager.load_contexts(state)
-    
+
     user_id = message.from_user.id
     user_full_name = message.from_user.full_name
     message_text = message.text or message.caption or ""
 
     if len(message_text) > 75 and not message.forward_origin:
-        result = await user_context_manager.analyze_and_update_context(user_id, user_full_name, message_text[:700] + "...")
+        result = await user_context_manager.analyze_and_update_context(
+            user_id, user_full_name, message_text[:700] + "..."
+        )
         logging.info(f"Context analysis result: {result}")  # For debugging purposes
 
         await user_context_manager.save_contexts(state)
 
     if message.message_id - last_summarized_id >= 400:
         # Filter messages that were not covered in the previous history message
-        messages_to_summarize = [msg for msg in messages_history if msg['message_id'] > last_history_message_id]
-        
+        messages_to_summarize = [
+            msg
+            for msg in messages_history
+            if msg["message_id"] > last_history_message_id
+        ]
+
         if len(messages_to_summarize) >= 300:
             await summarize_and_update_history(
-                message, state, bot, openai_client, with_bot=False, messages_to_summarize=messages_to_summarize
+                message,
+                state,
+                bot,
+                openai_client,
+                with_bot=False,
+                messages_to_summarize=messages_to_summarize,
             )
