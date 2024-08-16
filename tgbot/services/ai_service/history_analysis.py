@@ -15,9 +15,9 @@ class TimeOfDay(str, Enum):
 
 
 class Topic(BaseModel):
-    title: str
+    title: str = Field(..., description="The title of the topic, with an appropriate emoji that represents the topic at the beginning of topic title. Like: 🎬 Рекомендації серіалів")
     description: str = Field(..., description="A brief description of the topic, like: Костянтин К 🇺🇦 і NN ведуть суперечку про соціалізм, суперечливі думки від El.")
-    message_link: str
+    message_link: str = Field(..., description="A link to the message that started the topic")
     time: str = Field(..., description="The time of the topic in 'HH:MM' format")
 
 class DaySummary(BaseModel):
@@ -51,15 +51,12 @@ Create a list summarizing the main topics using Ukrainian language.
 Follow these guidelines:
 - Group topics by date and time of day (morning: 06:00-11:59, afternoon: 12:00-17:59, evening: 18:00-23:59, night: 00:00-05:59)
 - Each summary object contains a list of topics in chronological order.
-- Each topic should have a concise title, brief description, message link, and time
-- The link should point to the EARLIEST message in the topic.
 - Focus on significant discussions, not individual messages
 - Ensure each topic encompasses at least 3 messages
 - List from {num_topics} to {num_topics + 2} distinct topics.
 - Ensure each topic description is unique and informative.
 - Cover all major topics discussed in the chat, not individual messages.
 - Focus on substantial discussions rather than brief exchanges.
-- Include an appropriate emoji that represents the topic at the beginning of topic title.
 - Mention the user names (main actors) in the topic descriptions.
 
 The current date is {current_date}."""
