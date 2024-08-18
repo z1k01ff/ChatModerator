@@ -112,7 +112,7 @@ def format_message(msg: Union[dict, PyrogramMessage]) -> str:
             else "unknown"
         ).strip()
         content = msg.text or msg.caption or ""
-        username = f"@{msg.from_user.username}" or ""
+        username = f"@{msg.from_user.username}" if msg.from_user and msg.from_user.username else ""
         return f"""<time>{formatted_date}</time><user>{user} {username}</user>:<message>{content}</message><message_url>{msg.link}</message_url>"""
 
 
