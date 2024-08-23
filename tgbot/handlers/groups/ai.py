@@ -618,6 +618,15 @@ async def ask_ai(
         Sonnet, message.chat.id, message.from_user.id
     )
 
+    sent_message = await message.answer(
+        "⏳",
+        reply_to_message_id=(
+            message.reply_to_message.message_id
+            if message.reply_to_message and not assistant_message
+            else message.message_id
+        ),
+    )
+
     if reply_photo:
         logging.info("Adding reply message with photo")
         photo_bytes_io = await bot.download(
@@ -650,14 +659,6 @@ async def ask_ai(
     if prompt == "test":
         return await message.answer("🤖 Тестування пройшло успішно!")
 
-    sent_message = await message.answer(
-        "⏳",
-        reply_to_message_id=(
-            message.reply_to_message.message_id
-            if message.reply_to_message and not assistant_message
-            else message.message_id
-        ),
-    )
 
     try:
         if user_needs_to_pay:

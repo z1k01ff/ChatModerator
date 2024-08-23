@@ -44,7 +44,7 @@ class OpenAIMedia(AIMediaBase):
     def prepare_photo(self) -> str:
         return base64.b64encode(self.photo.getvalue()).decode("utf-8")
 
-    def prepare_video_frames(self, file: BytesIO, max_frames: int = 10) -> List[str]:
+    def prepare_video_frames(self, file: BytesIO, max_frames: int = 30) -> List[str]:
         file.seek(0)
         video_bytes = file.read()
         
@@ -57,7 +57,7 @@ class OpenAIMedia(AIMediaBase):
             frames = []
             frame_count = 0
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            step = max(1, total_frames // max_frames)
+            step = max(0.7, total_frames // max_frames)
 
             while len(frames) < max_frames:
                 ret, frame = cap.read()
