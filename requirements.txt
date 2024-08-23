@@ -26,3 +26,6 @@ uvicorn
 asyncpg
 emoji
 apscheduler
+opencv-python
+numpy
+pydub

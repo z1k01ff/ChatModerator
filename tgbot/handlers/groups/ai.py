@@ -478,7 +478,7 @@ async def command_summarize_chat_history(
 )
 @ai_router.message(
     Command("ai", magic=F.args.as_("prompt")),
-    F.photo[-1].as_("photo"),
+    F.photo[-1].as_("photo") | F.video.as_("video") | F.animation.as_("animation"),
 )
 @ai_router.message(
     F.reply_to_message.from_user.id == ASSISTANT_ID,
@@ -508,6 +508,8 @@ async def ask_ai(
     prompt: str | None = None,
     command: CommandObject | None = None,
     photo: types.PhotoSize | None = None,
+    video: types.Video | None = None,
+    animation: types.Animation | None = None,
     assistant_message: str | None = None,
     user_needs_to_pay: bool = False,
 ):
@@ -516,7 +518,11 @@ async def ask_ai(
 
     state_data = await state.get_data()
     provider = state_data.get("ai_provider", "anthropic")
-    ai_provider = (
+    if message.video or message.animation:
+        ai_provider = OpenAIProvider(client=openai_client, model_name="gpt-4o-mini")
+
+    else:
+        ai_provider = (
         AnthropicProvider(
             client=anthropic_client,
             model_name="claude-3-haiku-20240307"
@@ -611,7 +617,6 @@ async def ask_ai(
     usage_cost = await ai_conversation.calculate_cost(
         Sonnet, message.chat.id, message.from_user.id
     )
-    # notification = await get_notification(usage_cost)
 
     if reply_photo:
         logging.info("Adding reply message with photo")
@@ -624,7 +629,13 @@ async def ask_ai(
         if formatted_prompt:
             ai_conversation.add_assistant_message("Дякую!")
 
-    if message.photo or photo:
+    if isinstance(ai_provider, OpenAIProvider):
+        ai_media = await ai_provider.process_video_media(message)
+        if ai_media:
+            logging.info("Adding user message with video")
+            ai_conversation.add_user_message(text='<Media added>', ai_media=ai_media)
+
+    if photo:
         if not photo and message.photo:
             photo = message.photo[-1]
 

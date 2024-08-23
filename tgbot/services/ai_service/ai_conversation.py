@@ -48,9 +48,7 @@ class AIConversation(TokenUsageManager):
         self, text: Optional[str] = None, ai_media: Optional[AIMediaBase] = None
     ):
         if ai_media:
-            content = self.ai_provider.media_class(
-                photo=ai_media.photo, mime_type=ai_media.mime_type
-            ).render_content(text)
+            content = ai_media.render_content(text)
             self.message_handler.add_message("user", content)
         else:
             self.message_handler.add_message("user", text)
@@ -93,7 +91,7 @@ class AIConversation(TokenUsageManager):
         )
         logging.info(f"AI: {final_text}")
         await message.react(reaction=[ReactionTypeEmoji(emoji="👨‍💻")], is_big=True)
-        total_characters = len(self.conversation_log + self.system_message + final_text)
+        total_characters = len(self.conversation_log + self.system_message + final_text) + self.message_handler.photos * 2000
         logging.info(f"Total characters: {total_characters} used")
         return AIResponse(text=final_text, usage=int(total_characters*0.75))
 
