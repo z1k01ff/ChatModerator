@@ -91,7 +91,7 @@ class AIConversation(TokenUsageManager):
         )
         logging.info(f"AI: {final_text}")
         await message.react(reaction=[ReactionTypeEmoji(emoji="👨‍💻")], is_big=True)
-        total_characters = len(self.conversation_log + self.system_message + final_text) + self.message_handler.photos * 2000
+        total_characters = len(self.conversation_log + self.system_message + final_text) + self.message_handler.photos * 4000
         logging.info(f"Total characters: {total_characters} used")
         return AIResponse(text=final_text, usage=int(total_characters*0.75))
 
