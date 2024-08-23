@@ -241,22 +241,26 @@ async def get_pyrogram_messages_history(
     num_messages: int | None = None,
     chained_replies: bool = False,
     with_bot: bool = True,
-) -> str:
+) -> tuple[str, list[str]]:
     if not num_messages and not chained_replies:
-        return ""
+        return "", []
 
     messages: list[PyrogramMessage] = []
     if chained_replies:
         try:
-            previous_message: PyrogramMessage = await client.get_messages(
-                chat_id=chat_id, reply_to_message_ids=start_message_id
-            )
+            current_message_id = start_message_id
+            while current_message_id and len(messages) < 5:  # Limit to 5 chained messages
+                message: PyrogramMessage = await client.get_messages(chat_id=chat_id, message_ids=[current_message_id])
+                if message:
+                    if isinstance(message, list):
+                        message = message[0]
+                    messages.append(message)
+
+                    current_message_id = message.reply_to_message_id
+                else:
+                    break
         except pyrogram.errors.exceptions.bad_request_400.MessageIdsEmpty:
-            return ""
-        if previous_message:
-            messages.append(previous_message)
-            if previous_message.reply_to_message:
-                messages.append(previous_message.reply_to_message)
+            return "", []
 
     elif num_messages:
         from_id = min(
@@ -283,7 +287,33 @@ async def get_pyrogram_messages_history(
                 messages.extend(batch_messages)
 
     logging.info(f"Got {len(messages)} messages history")
-    return format_messages_history(messages, with_bot)
+    
+    formatted_messages = []
+    photo_file_ids = []
+    for msg in messages:
+        utc_date = msg.date.replace(tzinfo=ZoneInfo("UTC"))
+        kyiv_date = utc_date.astimezone(ZoneInfo("Europe/Kiev"))
+        formatted_date = kyiv_date.strftime("%Y-%m-d %H:%M")
+        user = (
+            f"{msg.from_user.first_name or ''} {msg.from_user.last_name or ''}"
+            if msg.from_user
+            else "unknown"
+        ).strip()
+        content = msg.text or msg.caption or ""
+        username = (
+            f"@{msg.from_user.username}"
+            if msg.from_user and msg.from_user.username
+            else ""
+        )
+        
+        if msg.photo:
+            photo_file_ids.append(msg.photo.file_id)
+        
+        formatted_message = f"""<time>{formatted_date}</time><user>{user} {username}</user>:<message>{content}</message><message_url>{msg.link}</message_url>"""
+        formatted_messages.append(formatted_message)
+
+    return "\n".join(formatted_messages), photo_file_ids
+
 
 
 async def get_initial_messages(
@@ -566,16 +596,19 @@ async def ask_ai(
         prompt = multiple_prompt
 
     if num_messages:
-        messages_history = await get_pyrogram_messages_history(
+        messages_history, photo_file_ids = await get_pyrogram_messages_history(
             client, message.reply_to_message.message_id, message.chat.id, num_messages
         )
     elif reply_prompt:
-        messages_history = await get_pyrogram_messages_history(
+        messages_history, photo_file_ids = await get_pyrogram_messages_history(
             client,
             message.reply_to_message.message_id,
             message.chat.id,
             chained_replies=True,
         )
+    else:
+        messages_history = ""
+        photo_file_ids = []
 
     long_answer = command is not None
 
@@ -617,6 +650,16 @@ async def ask_ai(
             else (300 if rating < 300 else 800)
         ),
     )
+    
+    # Process photos from history
+    for file_id in photo_file_ids:
+        photo_bytes_io = await bot.download(
+            file_id,
+            destination=BytesIO(),
+        )
+        ai_media = ai_provider.media_class(photo_bytes_io)
+        ai_conversation.add_user_message(text="Image from history", ai_media=ai_media)
+
     usage_cost = await ai_conversation.calculate_cost(
         Sonnet, message.chat.id, message.from_user.id
     )
@@ -649,7 +692,7 @@ async def ask_ai(
             logging.info("Adding user message with video")
             ai_conversation.add_user_message(text="<Media added>", ai_media=ai_media)
             if ai_media.transcription:
-                added_text = f"<blockquote expandable>📒Відео транскрипція:\n{ai_media.transcription[1500:]}</blockquote>"
+                added_text = f"<blockquote expandable>📒Відео транскрипція:\n{ai_media.transcription[:1500]}</blockquote>"
 
     if photo:
         if not photo and message.photo:
