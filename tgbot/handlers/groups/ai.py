@@ -13,7 +13,7 @@ from io import BytesIO
 from typing import Literal, Optional, Union
 
 from aiogram import Bot, F, Router, flags, types
-from aiogram.filters import Command, CommandObject, or_f
+from aiogram.filters import Command, CommandObject, invert_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hide_link, hlink
 from anthropic import APIStatusError, AsyncAnthropic
@@ -112,7 +112,11 @@ def format_message(msg: Union[dict, PyrogramMessage]) -> str:
             else "unknown"
         ).strip()
         content = msg.text or msg.caption or ""
-        username = f"@{msg.from_user.username}" if msg.from_user and msg.from_user.username else ""
+        username = (
+            f"@{msg.from_user.username}"
+            if msg.from_user and msg.from_user.username
+            else ""
+        )
         return f"""<time>{formatted_date}</time><user>{user} {username}</user>:<message>{content}</message><message_url>{msg.link}</message_url>"""
 
 
@@ -478,12 +482,7 @@ async def command_summarize_chat_history(
 )
 @ai_router.message(
     Command("ai", magic=F.args.as_("prompt")),
-    F.photo[-1].as_("photo") | F.video.as_("video") | F.animation.as_("animation"),
-)
-@ai_router.message(
-    F.reply_to_message.from_user.id == ASSISTANT_ID,
-    F.reply_to_message.text.as_("assistant_message"),
-    or_f(F.text.as_("prompt"), F.caption.as_("prompt")),
+    F.photo[-1].as_("photo") | F.video | F.animation,
 )
 @ai_router.message(
     Command("ai", magic=F.args.regexp(MULTIPLE_MESSAGES_REGEX)),
@@ -492,6 +491,12 @@ async def command_summarize_chat_history(
 @ai_router.message(
     Command("ai"),
     F.chat.id == 362089194,
+)
+@ai_router.message(
+    F.reply_to_message.from_user.id == ASSISTANT_ID,
+    F.reply_to_message.text.as_("assistant_message"),
+    or_f(F.text.as_("prompt"), F.caption.as_("prompt")),
+    invert_f(F.text.startswith("/")),
 )
 @flags.is_ai_interaction()
 @flags.rate_limit(limit=300, key="ai", max_times=5)
@@ -508,8 +513,6 @@ async def ask_ai(
     prompt: str | None = None,
     command: CommandObject | None = None,
     photo: types.PhotoSize | None = None,
-    video: types.Video | None = None,
-    animation: types.Animation | None = None,
     assistant_message: str | None = None,
     user_needs_to_pay: bool = False,
 ):
@@ -523,18 +526,18 @@ async def ask_ai(
 
     else:
         ai_provider = (
-        AnthropicProvider(
-            client=anthropic_client,
-            model_name="claude-3-haiku-20240307"
-            if rating < 300
-            else "claude-3-5-sonnet-20240620",
+            AnthropicProvider(
+                client=anthropic_client,
+                model_name="claude-3-haiku-20240307"
+                if rating < 300
+                else "claude-3-5-sonnet-20240620",
+            )
+            if provider == "anthropic"
+            else OpenAIProvider(
+                client=openai_client,
+                model_name="gpt-4o-mini" if rating < 300 else "gpt-4o",
+            )
         )
-        if provider == "anthropic"
-        else OpenAIProvider(
-            client=openai_client,
-            model_name="gpt-4o-mini" if rating < 300 else "gpt-4o",
-        )
-    )
 
     actor_name = message.from_user.full_name
     reply_prompt = extract_reply_prompt(message)
@@ -627,6 +630,8 @@ async def ask_ai(
         ),
     )
 
+    added_text = ""
+
     if reply_photo:
         logging.info("Adding reply message with photo")
         photo_bytes_io = await bot.download(
@@ -642,7 +647,9 @@ async def ask_ai(
         ai_media = await ai_provider.process_video_media(message)
         if ai_media:
             logging.info("Adding user message with video")
-            ai_conversation.add_user_message(text='<Media added>', ai_media=ai_media)
+            ai_conversation.add_user_message(text="<Media added>", ai_media=ai_media)
+            if ai_media.transcription:
+                added_text = f"<blockquote expandable>📒Відео транскрипція:\n{ai_media.transcription[1500:]}</blockquote>"
 
     if photo:
         if not photo and message.photo:
@@ -659,7 +666,6 @@ async def ask_ai(
     if prompt == "test":
         return await message.answer("🤖 Тестування пройшло успішно!")
 
-
     try:
         if user_needs_to_pay:
             keyboard = await payment_keyboard(bot, usage_cost, message.chat.id)
@@ -669,7 +675,7 @@ async def ask_ai(
         response = await ai_conversation.answer_with_ai(
             message=message,
             sent_message=sent_message,
-            notification="",
+            notification=added_text,
             with_tts=ai_mode == "NASTY",
             keyboard=keyboard,
         )

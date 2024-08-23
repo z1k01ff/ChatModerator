@@ -79,7 +79,7 @@ class ThrottlingMiddleware(BaseMiddleware):
             else:
                 # Strict rate limit for AI interactions that require payment
                 logging.info("User has to pay for AI interaction, set limit to 1x5mins")
-                limit = 300  # 5 minutes
+                limit = 600  # 10 minutes
                 max_times = 1
                 data["user_needs_to_pay"] = True
 

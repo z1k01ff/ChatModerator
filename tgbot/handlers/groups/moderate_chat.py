@@ -581,8 +581,9 @@ async def promote_with_title(
     elif member:
         admin = message.from_user
         target_rating = await repo.rating_users.get_rating_by_user_id(member.id) or 0
-
-        if rating and not is_admin:
+        if is_admin:
+            LIMIT_TARGET_RATING = 100000
+        elif rating:
             if rating > 1000:
                 LIMIT_TARGET_RATING = 600
             elif rating > 300:
@@ -590,8 +591,6 @@ async def promote_with_title(
 
             else:
                 raise ValueError("Неправильний рейтинг для цієї команди")
-        elif is_admin:
-            LIMIT_TARGET_RATING = 100000
         else:
             LIMIT_TARGET_RATING = 100
 
