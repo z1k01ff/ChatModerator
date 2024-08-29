@@ -54,15 +54,15 @@ class RatingUsersRepo:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def add_user_for_rating(self, user_id: int, rating: int):
-        stmt = insert(RatingUsers).values(user_id=user_id, rating=rating)
+    async def add_user_for_rating(self, user_id: int, chat_id: int, rating: int):
+        stmt = insert(RatingUsers).values(user_id=user_id, chat_id=chat_id, rating=rating)
         await self.session.execute(stmt)
         await self.session.commit()
 
-    async def increment_rating_by_user_id(self, user_id: int, increment: int):
+    async def increment_rating_by_user_id(self, user_id: int, chat_id: int, increment: int):
         stmt = (
             update(RatingUsers)
-            .where(RatingUsers.user_id == user_id)
+            .where(RatingUsers.user_id == user_id, RatingUsers.chat_id == chat_id)
             .values(rating=RatingUsers.rating + increment)
             .returning(RatingUsers.rating)
         )
@@ -70,11 +70,11 @@ class RatingUsersRepo:
         await self.session.commit()
         return new_rating.scalar()
 
-    async def get_rating_by_user_id(self, user_id: int) -> Optional[int]:
-        stmt = select(RatingUsers.rating).where(RatingUsers.user_id == user_id)
+    async def get_rating_by_user_id(self, user_id: int, chat_id: int) -> Optional[int]:
+        stmt = select(RatingUsers.rating).where(RatingUsers.user_id == user_id, RatingUsers.chat_id == chat_id)
         result = await self.session.execute(stmt)
         rating = result.scalar()
-        logging.info(f"Rating for user {user_id}: {rating}")
+        logging.info(f"Rating for user {user_id} in chat {chat_id}: {rating}")
         return rating
 
     async def wipe_ratings(self):
@@ -82,10 +82,10 @@ class RatingUsersRepo:
         await self.session.execute(stmt)
         await self.session.commit()
 
-    async def update_rating_by_user_id(self, user_id: int, rating: int):
+    async def update_rating_by_user_id(self, user_id: int, chat_id: int, rating: int):
         stmt = (
             update(RatingUsers)
-            .where(RatingUsers.user_id == user_id)
+            .where(RatingUsers.user_id == user_id, RatingUsers.chat_id == chat_id)
             .values(rating=rating)
         )
         await self.session.execute(stmt)

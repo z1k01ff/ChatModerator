@@ -153,14 +153,13 @@ class OpenAIProvider(AIProviderBase):
 
         # First, try to process the media in the current message
         result = await process_message(message)
+        if not result and message.reply_to_message:
+            result = await process_message(message.reply_to_message)
+
         if result:
             logging.info("Processing current message media")
+            self.model_name = "gpt-4o-mini"
             return result
-
-        # If no media in the current message, check the replied message
-        if message.reply_to_message:
-            logging.info("Processing replied message media")
-            return await process_message(message.reply_to_message)
 
         return None
 

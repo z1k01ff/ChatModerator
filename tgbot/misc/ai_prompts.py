@@ -133,3 +133,10 @@ IDENTITIES = [
     "leftist (political)",
     "rightist (political)",
 ]
+
+MODEL_EMOJIS = {
+    "claude-3-haiku-20240307": "🟣 Claude Haiku",
+    "claude-3-5-sonnet-20240620": "🔵 Claude Sonnet",
+    "gpt-4o-mini": "🟢 GPT-4o Mini",
+    "gpt-4o": "🟠 GPT-4o"
+}

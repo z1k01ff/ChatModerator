@@ -75,19 +75,13 @@ def is_rating_cached(helper_id: int, user_id: int, ratings_cache: dict) -> bool:
     return False
 
 
-async def change_rating(
-    helper_id: int, change: int, repo: RequestsRepo
-) -> tuple[int, int]:
-    current_rating = await repo.rating_users.get_rating_by_user_id(helper_id)
+async def change_rating(helper_id: int, chat_id: int, change: int, repo: RequestsRepo) -> tuple[int, int]:
+    current_rating = await repo.rating_users.get_rating_by_user_id(helper_id, chat_id)
     if current_rating is None:
-        await repo.rating_users.add_user_for_rating(helper_id, change)
+        await repo.rating_users.add_user_for_rating(helper_id, chat_id, change)
         return 0, change
-
-    # Update the rating
-    new_rating = current_rating + change
-    await repo.rating_users.update_rating_by_user_id(helper_id, new_rating)
-
-    return current_rating, new_rating
+    new_rating = await repo.rating_users.increment_rating_by_user_id(helper_id, chat_id, change)
+    return current_rating, new_rating or 0
 
 
 def calculate_rating_change(
@@ -111,10 +105,11 @@ def calculate_rating_change(
 
 
 async def reaction_rating_calculator(
-    reaction: MessageReactionUpdated, repo: RequestsRepo, helper_id, actor_id
+    reaction: MessageReactionUpdated, repo: RequestsRepo, helper_id: int, actor_id: int
 ) -> int:
-    helper_rating = await repo.rating_users.get_rating_by_user_id(helper_id) or 0
-    actor_rating = await repo.rating_users.get_rating_by_user_id(actor_id) or 0
+    chat_id = reaction.chat.id
+    helper_rating = await repo.rating_users.get_rating_by_user_id(helper_id, chat_id) or 0
+    actor_rating = await repo.rating_users.get_rating_by_user_id(actor_id, chat_id) or 0
 
     helper_rank = UserRank.from_rating(helper_rating)
     actor_rank = UserRank.from_rating(actor_rating)

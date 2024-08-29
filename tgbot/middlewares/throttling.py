@@ -12,6 +12,7 @@ from tgbot.misc.time_utils import format_time
 from aiogram.fsm.storage.redis import RedisStorage
 
 from tgbot.services.broadcaster import send_telegram_action
+from tgbot.services.payments import payment_keyboard
 from tgbot.services.token_usage import Sonnet, TokenUsageManager
 
 
@@ -55,6 +56,7 @@ class ThrottlingMiddleware(BaseMiddleware):
 
         # Check for AI-related flag
         is_ai_interaction = get_flag(data, "is_ai_interaction")
+        bot: Bot = data.get("bot")
 
         key_prefix = rate_limit.get("key", "antiflood")
         limit = rate_limit.get("limit", 30)
@@ -66,6 +68,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         current_count = await self._get_throttle_count(key)
         logging.info(f"Current count: {current_count}")
         logging.info(f"Max times: {max_times}")
+        keyboard = None
     
         # Handle AI interactions
         if is_ai_interaction is not None:
@@ -82,6 +85,7 @@ class ThrottlingMiddleware(BaseMiddleware):
                 limit = 600  # 10 minutes
                 max_times = 1
                 data["user_needs_to_pay"] = True
+                keyboard = await payment_keyboard(bot, usage_cost, event.chat.id)
 
         if current_count >= max_times:
             remaining_ttl = await self._get_remaining_ttl(key)
@@ -93,12 +97,14 @@ class ThrottlingMiddleware(BaseMiddleware):
                     chat_id=event.chat.id,
                     text=f"Занадто часто! Повторіть спробу через {format_time(remaining_ttl)}.",
                     reply_to_message_id=event.message_id,
+                    reply_markup=keyboard,
                 )
-                await asyncio.sleep(5)
-                with suppress(Exception):
-                    await event.delete()
-                    await notification.delete()
-            return  # Stop processing if throttled
+                if not is_ai_interaction:
+                    await asyncio.sleep(5)
+                    with suppress(Exception):
+                        await event.delete()
+                        await notification.delete()
+            return 
 
         # Increment or initialize the throttle count
         await self._set_throttle_count(key, current_count + 1, int(limit))

@@ -15,7 +15,7 @@ from typing import Literal, Optional, Union
 from aiogram import Bot, F, Router, flags, types
 from aiogram.filters import Command, CommandObject, invert_f, or_f
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.markdown import hide_link, hlink
+from aiogram.utils.markdown import hbold, hide_link, hlink
 from anthropic import APIStatusError, AsyncAnthropic
 from openai import AsyncOpenAI
 from elevenlabs.client import AsyncElevenLabs
@@ -28,6 +28,7 @@ from tgbot.misc.ai_prompts import (
     JOKE_DIVERSITY_MODE,
     JOKE_NATION_MODE,
     MANUPULATOR_MODE,
+    MODEL_EMOJIS,
     NASTY_MODE,
     TARO_MODE,
     YANUKOVICH_MODE,
@@ -249,8 +250,12 @@ async def get_pyrogram_messages_history(
     if chained_replies:
         try:
             current_message_id = start_message_id
-            while current_message_id and len(messages) < 5:  # Limit to 5 chained messages
-                message: PyrogramMessage = await client.get_messages(chat_id=chat_id, message_ids=[current_message_id])
+            while (
+                current_message_id and len(messages) < 5
+            ):  # Limit to 5 chained messages
+                message: PyrogramMessage = await client.get_messages(
+                    chat_id=chat_id, message_ids=[current_message_id]
+                )
                 if message:
                     if isinstance(message, list):
                         message = message[0]
@@ -287,7 +292,7 @@ async def get_pyrogram_messages_history(
                 messages.extend(batch_messages)
 
     logging.info(f"Got {len(messages)} messages history")
-    
+
     formatted_messages = []
     photo_file_ids = []
     for msg in messages:
@@ -305,15 +310,14 @@ async def get_pyrogram_messages_history(
             if msg.from_user and msg.from_user.username
             else ""
         )
-        
+
         if msg.photo:
             photo_file_ids.append(msg.photo.file_id)
-        
+
         formatted_message = f"""<time>{formatted_date}</time><user>{user} {username}</user>:<message>{content}</message><message_url>{msg.link}</message_url>"""
         formatted_messages.append(formatted_message)
 
     return "\n".join(formatted_messages), photo_file_ids
-
 
 
 async def get_initial_messages(
@@ -551,29 +555,25 @@ async def ask_ai(
 
     state_data = await state.get_data()
     provider = state_data.get("ai_provider", "anthropic")
-    if message.video or message.animation:
-        ai_provider = OpenAIProvider(client=openai_client, model_name="gpt-4o-mini")
 
-    else:
-        ai_provider = (
-            AnthropicProvider(
-                client=anthropic_client,
-                model_name="claude-3-haiku-20240307"
-                if rating < 300
-                else "claude-3-5-sonnet-20240620",
-            )
-            if provider == "anthropic"
-            else OpenAIProvider(
-                client=openai_client,
-                model_name="gpt-4o-mini" if rating < 300 else "gpt-4o",
-            )
+    ai_provider = (
+        AnthropicProvider(
+            client=anthropic_client,
+            model_name="claude-3-haiku-20240307"
+            if rating < 300
+            else "claude-3-5-sonnet-20240620",
         )
+        if provider == "anthropic"
+        else OpenAIProvider(
+            client=openai_client,
+            model_name="gpt-4o-mini" if rating < 300 else "gpt-4o",
+        )
+    )
 
     actor_name = message.from_user.full_name
     reply_prompt = extract_reply_prompt(message)
     reply_photo = extract_reply_photo(message)
     reply_person = extract_reply_person(message, assistant_message)
-    state_data = await state.get_data()
     ai_mode = state_data.get("ai_mode", "GOOD")
 
     if ai_mode == "OFF":
@@ -650,7 +650,7 @@ async def ask_ai(
             else (300 if rating < 300 else 800)
         ),
     )
-    
+
     # Process photos from history
     for file_id in photo_file_ids:
         photo_bytes_io = await bot.download(
@@ -709,6 +709,11 @@ async def ask_ai(
     if prompt == "test":
         return await message.answer("🤖 Тестування пройшло успішно!")
 
+
+    model_notification = hbold(MODEL_EMOJIS.get(ai_provider.model_name, "🤖"))  # Default to 🤖 if model not found
+
+    added_text = f"{model_notification}\n{added_text}" if added_text else model_notification
+    logging.info(f"AI Provider: {ai_provider}")
     try:
         if user_needs_to_pay:
             keyboard = await payment_keyboard(bot, usage_cost, message.chat.id)
@@ -741,19 +746,19 @@ async def ask_ai(
 @ai_router.message(Command("nasty"))
 async def set_nasty_mode(message: types.Message, state: FSMContext):
     await message.answer("Добре, тепер я буду грубішим.")
-    await state.update_data(ai_mode="NASTY", provider="anthropic")
+    await state.update_data(ai_mode="NASTY", ai_provider="anthropic")
 
 
 @ai_router.message(Command("good"))
 async def set_good_mode(message: types.Message, state: FSMContext):
     await message.answer("Добре, тепер я буду добрішим.")
-    await state.update_data(ai_mode="GOOD", provider="openai")
+    await state.update_data(ai_mode="GOOD", ai_provider="openai")
 
 
 @ai_router.message(Command("cunning"))
 async def set_manipulator_mode(message: types.Message, state: FSMContext):
     await message.answer("Добре, поїхали :)")
-    await state.update_data(ai_mode="MANIPUlATOR", provider="openai")
+    await state.update_data(ai_mode="MANIPUlATOR", ai_provider="openai")
 
 
 @ai_router.message(Command("off_ai"))

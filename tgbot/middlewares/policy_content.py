@@ -52,13 +52,13 @@ class OpenAIModerationMiddleware(BaseMiddleware):
                         await event.reply(
                             "Увага: Ви продовжуєте токсично себе поводити. \n\n⚠️Ваш соціальний рейтинг був знижений на 3."
                         )
-                        await change_rating(user_id, -2, data["repo"])
+                        await change_rating(user_id, event.chat.id, -2, data["repo"])
 
                     elif self.warned_users[user_id]["times"] > 4:
                         await event.reply(
                             "За неодноразове порушення правил. \n\n⚠️Ваш рейтинг був знижений на 5."
                         )
-                        await change_rating(user_id, -5, data["repo"])
+                        await change_rating(user_id, event.chat.id, -5, data["repo"])
                         # clear the user from the dict
                         del self.warned_users[user_id]
 

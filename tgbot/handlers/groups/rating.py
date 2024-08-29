@@ -33,10 +33,11 @@ async def process_new_rating(
     rating_change: int,
     repo: RequestsRepo,
     helper_id: int,
+    chat_id: int,
     mention_from: str,
     mention_reply: str,
 ) -> tuple[int, str] | None:
-    previous_rating, new_rating = await change_rating(helper_id, rating_change, repo)
+    previous_rating, new_rating = await change_rating(helper_id, chat_id, rating_change, repo)
 
     if rating_change > 0:
         text = (
@@ -191,6 +192,7 @@ async def add_reaction_rating_handler(
         rating_change,
         repo,
         helper_id,
+        reaction.chat.id,
         reaction.user.mention_html(reaction.user.first_name),
         helper.user.mention_html(helper.user.first_name),
     )
@@ -208,7 +210,7 @@ async def add_reaction_rating_handler(
     F.reply_to_message.from_user.id.as_("target_id"),
 )
 async def topup_user(message: types.Message, target_id: int, repo: RequestsRepo):
-    await repo.rating_users.increment_rating_by_user_id(target_id, 100)
+    await repo.rating_users.increment_rating_by_user_id(target_id, message.chat.id, 100)
     await message.answer("Рейтинг поповнено на 100")
 
 
@@ -217,7 +219,7 @@ async def get_user_rating(m: types.Message, repo: RequestsRepo, bot, state: FSMC
     target = m.reply_to_message.from_user if m.reply_to_message else m.from_user
     target_id = target.id
 
-    current_rating = await repo.rating_users.get_rating_by_user_id(target_id)
+    current_rating = await repo.rating_users.get_rating_by_user_id(target_id, m.chat.id)
     if current_rating is None:
         await m.reply("Рейтинг користувача не знайдено.")
         return

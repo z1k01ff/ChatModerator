@@ -30,3 +30,6 @@ class AIProviderBase(ABC):
         temperature: float = 0.1,
     ) -> AsyncGenerator[str, None]:
         raise NotImplementedError("This method should be overridden by subclasses")
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(media_class={self.media_class.__name__})"
