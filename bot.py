@@ -28,6 +28,7 @@ from tgbot.handlers.private.basic import basic_router
 from tgbot.handlers.private.admin import admin_router
 from tgbot.middlewares.activity import UserActivityMiddleware
 from tgbot.middlewares.bot_messages import BotMessages
+from tgbot.middlewares.chat_admins import ChatAdminsMiddleware
 from tgbot.middlewares.database import DatabaseMiddleware
 from tgbot.middlewares.policy_content import OpenAIModerationMiddleware
 from tgbot.middlewares.ratings_cache import (
@@ -38,6 +39,7 @@ from tgbot.misc.default_commands import set_default_commands
 from tgbot.services import broadcaster
 from tgbot.misc.phrases import bot_startup_phrases
 from aiogram.client.default import DefaultBotProperties
+from tgbot.middlewares.command_usage_middleware import CommandUsageMiddleware
 
 
 async def on_startup(bot: Bot, config: Config, client: Client, scheduler: AsyncIOScheduler) -> None:
@@ -81,8 +83,10 @@ def register_global_middlewares(
     dp.message_reaction.middleware(ThrottlingMiddleware(storage, bot))
     dp.update.outer_middleware(DatabaseMiddleware(session_pool))
     dp.message.outer_middleware(MessageUserMiddleware())
+    dp.message.middleware(CommandUsageMiddleware())
     UserActivityMiddleware(storage).setup(dp)
-
+    dp.update.outer_middleware(ChatAdminsMiddleware(storage))
+    
 
 def setup_logging():
     """
@@ -176,6 +180,7 @@ async def main():
         ai_router,
     )
 
+
     register_global_middlewares(dp, config, session_pool, openai_client, storage ,bot=bot)
 
     dp.workflow_data.update(
@@ -188,7 +193,7 @@ async def main():
     await bot.delete_webhook()
     dp.startup.register(on_startup)
     dp.shutdown.register(shutdown)
-    await dp.start_polling(bot, config=config, scheduler=scheduler)
+    await dp.start_polling(bot, config=config, scheduler=scheduler, storage=storage)
 
 
 if __name__ == "__main__":

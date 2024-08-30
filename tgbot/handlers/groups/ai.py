@@ -709,10 +709,13 @@ async def ask_ai(
     if prompt == "test":
         return await message.answer("🤖 Тестування пройшло успішно!")
 
+    model_notification = hbold(
+        MODEL_EMOJIS.get(ai_provider.model_name, "🤖")
+    )  # Default to 🤖 if model not found
 
-    model_notification = hbold(MODEL_EMOJIS.get(ai_provider.model_name, "🤖"))  # Default to 🤖 if model not found
-
-    added_text = f"{model_notification}\n{added_text}" if added_text else model_notification
+    added_text = (
+        f"{model_notification}\n{added_text}" if added_text else model_notification
+    )
     logging.info(f"AI Provider: {ai_provider}")
     try:
         if user_needs_to_pay:
@@ -775,6 +778,7 @@ async def turn_on_ai(message: types.Message, state: FSMContext):
 
 @ai_router.message(Command("nation"))
 @flags.rate_limit(limit=120, key="nationality")
+@flags.is_ai_interaction()
 async def determine_nationality(
     message: types.Message,
     anthropic_client: AsyncAnthropic,
@@ -847,9 +851,21 @@ async def determine_nationality(
         )
 
 
+# /taro without args or reply - answer with examples:
+@ai_router.message(Command("taro", magic=~F.args))
+@ai_router.message(Command("taro"), ~F.reply_to_message)
+async def taro_reading_without_args(
+    message: types.Message,
+):
+    await message.reply("""Будь ласка, задайте питання після команди /taro:
+/taro як мені стати успішним?
+Або викличте команду у в��дповідь на повідомлення користувача.""")
+
+
 @ai_router.message(Command("taro"))
 @flags.rate_limit(limit=120, key="taro")
 @flags.override(user_id=362089194)
+@flags.is_ai_interaction()
 async def taro_reading(
     message: types.Message,
     anthropic_client: AsyncAnthropic,
@@ -920,6 +936,7 @@ async def taro_reading(
 @ai_router.message(Command("gay"))
 @flags.rate_limit(limit=120, key="gay")
 @flags.override(user_id=362089194)
+@flags.is_ai_interaction()
 async def determine_orientation(
     message: types.Message,
     anthropic_client: AsyncAnthropic,

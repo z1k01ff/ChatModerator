@@ -89,7 +89,7 @@ async def roll_dice_command(
                 [
                     InlineKeyboardButton(
                         text="🎰 Зіграти!",
-                        url="https://t.me/Latandbot/casino",
+                        url=f"https://t.me/Latandbot/casino?startapp={message.chat.id}",
                     )
                 ]
             ]

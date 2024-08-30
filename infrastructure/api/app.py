@@ -45,6 +45,7 @@ def check_rate_limit(user_id: int):
 
 class ShareResultsRequest(BaseModel):
     user_id: int
+    chat_id: int
     session_result: int
     InitData: str
 
@@ -53,6 +54,7 @@ class BalanceResponse(BaseModel):
 
 class SpinRequest(BaseModel):
     user_id: int
+    chat_id: int
     stake: int
     InitData: str
 
@@ -62,13 +64,13 @@ class SpinResponse(BaseModel):
     winAmount: int
     newBalance: int
 
-async def get_user_balance(user_id: int, repo: RequestsRepo) -> int:
-    return await repo.rating_users.get_rating_by_user_id(user_id) or 0
+async def get_user_balance(user_id: int, chat_id: int, repo: RequestsRepo) -> int:
+    return await repo.rating_users.get_rating_by_user_id(user_id, chat_id) or 0
 
 async def update_user_balance(
-    user_id: int, new_balance: int, repo: RequestsRepo
+    user_id: int, chat_id: int, new_balance: int, repo: RequestsRepo
 ) -> None:
-    await repo.rating_users.update_rating_by_user_id(user_id, new_balance)
+    await repo.rating_users.update_rating_by_user_id(user_id, chat_id, new_balance)
 
 # Game logic
 SYMBOLS = ["🍋", "🍒", "🍇", "🎰", "7️⃣"]
@@ -93,10 +95,10 @@ def calculate_winnings(result: List[str], stake: int) -> int:
 router = APIRouter(prefix="/chatmoderator/api")
 
 @router.get("/balance", response_model=BalanceResponse)
-async def get_balance(user_id: int):
+async def get_balance(user_id: int, chat_id: int):
     async with session_pool() as session:
         repo = RequestsRepo(session)
-        balance = await get_user_balance(user_id, repo)
+        balance = await get_user_balance(user_id, chat_id, repo)
     return {"balance": balance}
 
 @router.post("/spin", response_model=SpinResponse)
@@ -117,7 +119,7 @@ async def spin(request: SpinRequest):
 
     async with session_pool() as session:
         repo = RequestsRepo(session)
-        current_balance = await get_user_balance(request.user_id, repo)
+        current_balance = await get_user_balance(request.user_id, request.chat_id, repo)
 
         if current_balance < request.stake:
             raise HTTPException(status_code=400, detail="Insufficient balance")
@@ -128,7 +130,7 @@ async def spin(request: SpinRequest):
         action = "win" if winAmount > 0 else "lose"
 
         print(f"Result: {result}, action: {action}, winAmount: {winAmount}, newBalance: {newBalance}")
-        await update_user_balance(request.user_id, newBalance, repo)
+        await update_user_balance(request.user_id, request.chat_id, newBalance, repo)
 
         data = parse_init_data(request.InitData)
         if action == "win":
@@ -150,7 +152,7 @@ async def spin(request: SpinRequest):
                                 [
                                     InlineKeyboardButton(
                                         text="🎰 Зіграти теж!",
-                                        url="https://t.me/Latandbot/casino",
+                                        url=f"https://t.me/Latandbot/casino?startapp={request.chat_id}",
                                     )
                                 ]
                             ]

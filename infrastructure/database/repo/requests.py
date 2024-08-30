@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,7 +91,7 @@ class RatingUsersRepo:
         await self.session.execute(stmt)
         await self.session.commit()
 
-    async def get_top_by_rating(self, limit=10) -> List[RatingUsers]:
+    async def get_top_by_rating(self, limit=10) -> Sequence[tuple[int, int]]:
         stmt = (
             select(RatingUsers.user_id, RatingUsers.rating)
             .order_by(RatingUsers.rating.desc())

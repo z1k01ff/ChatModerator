@@ -12,7 +12,9 @@ class RatingFilter(BaseFilter):
     async def __call__(
         self, obj: Message, repo: RequestsRepo, event_from_user: User
     ) -> bool | dict:  # type: ignore
-        user_rating = await repo.rating_users.get_rating_by_user_id(event_from_user.id)
+        user_rating = await repo.rating_users.get_rating_by_user_id(
+            event_from_user.id, chat_id=obj.chat.id
+        )
         if not user_rating:
             return False
 

@@ -580,7 +580,7 @@ async def promote_with_title(
 
     elif member:
         admin = message.from_user
-        target_rating = await repo.rating_users.get_rating_by_user_id(member.id) or 0
+        target_rating = await repo.rating_users.get_rating_by_user_id(member.id, chat_id=message.chat.id) or 0
         if is_admin:
             LIMIT_TARGET_RATING = 100000
         elif rating:
@@ -616,17 +616,14 @@ async def promote_with_title(
 
     try:
         chat_member = await message.chat.get_member(member_id)
-        if chat_member.status in {"administrator", "creator"}:
+        if isinstance(chat_member, (types.ChatMemberAdministrator, types.ChatMemberOwner)):
             text = f"Користувачу {member_mentioned} було змінено посаду на {custom_title} адміністратором {admin_mentioned}"
             await message.chat.set_administrator_custom_title(
                 user_id=member_id, custom_title=custom_title
             )
         else:
             text = f"Користувач {member_mentioned} був підвищений до адміністратора адміністратором {admin_mentioned} з посадою: {custom_title}"
-            await message.chat.promote(
-                user_id=member_id,
-                can_invite_users=True,
-            )
+            await message.chat.promote(user_id=member_id, can_manage_chat=True)
             await message.chat.set_administrator_custom_title(
                 user_id=member_id, custom_title=custom_title
             )
@@ -707,24 +704,40 @@ async def ban_me_really(message: types.Message):
     user_id = message.from_user.id
 
     try:
-        await message.chat.ban(user_id=user_id, until_date=datetime.datetime.now() + datetime.timedelta(days=1))
-        await message.answer(f"Користувач {message.from_user.mention_html()} був САМОзаблокований командою /ban_me_really на 1 день.")
+        await message.chat.ban(
+            user_id=user_id,
+            until_date=datetime.datetime.now() + datetime.timedelta(days=1),
+        )
+        await message.answer(
+            f"Користувач {message.from_user.mention_html()} був САМОзаблокований командою /ban_me_really на 1 день."
+        )
         logging.info(f"User {message.from_user.username} was banned by themselves.")
     except Exception as e:
         logging.exception(e)
         await message.answer("Не вдалося заблокувати користувача.")
+
 
 # Define the /ban_me_please handler
 @groups_moderate_router.message(Command("ban_me_please", prefix="/"), F.from_user)
 async def ban_me_please(message: types.Message):
     user_id = message.from_user.id
     restriction_period = 15 * 60  # 15 minutes in seconds
-    until_date = datetime.datetime.now() + datetime.timedelta(seconds=restriction_period)
+    until_date = datetime.datetime.now() + datetime.timedelta(
+        seconds=restriction_period
+    )
 
     try:
-        await message.chat.restrict(user_id=user_id, permissions=set_user_ro_permissions(), until_date=until_date)
-        await message.answer(f"Користувач {message.from_user.mention_html()} був САМОобмежений на 15 хвилин командою /ban_me_please.")
-        logging.info(f"User {message.from_user.username} was restricted for 15 minutes by themselves.")
+        await message.chat.restrict(
+            user_id=user_id,
+            permissions=set_user_ro_permissions(),
+            until_date=until_date,
+        )
+        await message.answer(
+            f"Користувач {message.from_user.mention_html()} був САМОобмежений на 15 хвилин командою /ban_me_please."
+        )
+        logging.info(
+            f"User {message.from_user.username} was restricted for 15 minutes by themselves."
+        )
     except Exception as e:
         logging.exception(e)
         await message.answer("Не вдалося обмежити користувача.")

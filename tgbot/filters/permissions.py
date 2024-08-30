@@ -1,10 +1,32 @@
-import typing
 from dataclasses import dataclass
 
 from aiogram import types
 from aiogram.enums import ChatMemberStatus, ChatType
 from aiogram.filters import BaseFilter
-from aiogram.types import ChatMemberAdministrator
+
+ChatMemberType = (
+    types.ChatMemberOwner
+    | types.ChatMemberAdministrator
+    | types.ChatMemberMember
+    | types.ChatMemberRestricted
+    | types.ChatMemberLeft
+    | types.ChatMemberBanned
+)
+
+
+async def get_chat_member_status(
+    chat_admins: dict[int, ChatMemberType], user_id: int
+) -> ChatMemberType | None: 
+    user= chat_admins.get(int(user_id))
+    return user
+
+
+async def is_user_admin(chat_admins: dict[int, ChatMemberType], user_id: int) -> bool:
+    chat_member = await get_chat_member_status(chat_admins, user_id)
+    return chat_member is not None and (
+        chat_member.status == ChatMemberStatus.CREATOR
+        or chat_member.status == ChatMemberStatus.ADMINISTRATOR
+    )
 
 
 @dataclass
@@ -17,26 +39,14 @@ class HasPermissionsFilter(BaseFilter):
     can_change_info: bool = False
     can_invite_users: bool = False
     can_pin_messages: bool = False
-    CHAT_ADMINS: typing.ClassVar[typing.Dict[int, typing.List[types.ChatMember]]] = {}
 
-    async def __call__(self, message: types.Message) -> bool | dict | None:
-        chat_id = message.chat.id
-        user_id = message.from_user.id
-
+    async def __call__(
+        self, message: types.Message, chat_admins: dict[int, ChatMemberType]
+    ) -> bool | dict | None:
         if message.chat.type == ChatType.PRIVATE:
             return False
 
-        if chat_id not in self.CHAT_ADMINS:
-            self.CHAT_ADMINS[chat_id] = await message.chat.get_administrators()
-
-        chat_member: ChatMemberAdministrator = next(
-            (
-                member
-                for member in self.CHAT_ADMINS[chat_id]
-                if member.user.id == user_id
-            ),
-            None,
-        )
+        chat_member = await get_chat_member_status(chat_admins, message.from_user.id)
 
         if not chat_member:
             return False  # User not found among chat admins
@@ -45,10 +55,14 @@ class HasPermissionsFilter(BaseFilter):
         if chat_member.status == ChatMemberStatus.CREATOR:
             return {"is_admin": True}
 
-        checks = [
-            (self.can_delete_messages, chat_member.can_delete_messages),
-            (self.can_restrict_members, chat_member.can_restrict_members),
-        ]
+        if isinstance(chat_member, types.ChatMemberAdministrator):
+            checks = [
+                (self.can_delete_messages, chat_member.can_delete_messages),
+                (self.can_restrict_members, chat_member.can_restrict_members),
+                # Add other permission checks here
+            ]
 
         if all(required == granted for required, granted in checks if required):
             return {"is_admin": True}
+
+        return False
