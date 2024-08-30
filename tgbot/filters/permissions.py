@@ -62,7 +62,7 @@ class HasPermissionsFilter(BaseFilter):
                 # Add other permission checks here
             ]
 
-        if all(required == granted for required, granted in checks if required):
-            return {"is_admin": True}
+            if all(required == granted for required, granted in checks if required):
+                return {"is_admin": True}
 
         return False
