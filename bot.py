@@ -31,6 +31,7 @@ from tgbot.middlewares.bot_messages import BotMessages
 from tgbot.middlewares.chat_admins import ChatAdminsMiddleware
 from tgbot.middlewares.database import DatabaseMiddleware
 from tgbot.middlewares.policy_content import OpenAIModerationMiddleware
+from tgbot.middlewares.rating_check_middleware import RatingCheckMiddleware
 from tgbot.middlewares.ratings_cache import (
     MessageUserMiddleware,
 )
@@ -86,6 +87,8 @@ def register_global_middlewares(
     dp.message.middleware(CommandUsageMiddleware())
     UserActivityMiddleware(storage).setup(dp)
     dp.update.outer_middleware(ChatAdminsMiddleware(storage))
+    dp.message.middleware(RatingCheckMiddleware())
+    dp.message.middleware(CommandUsageMiddleware())
     
 
 def setup_logging():
