@@ -12,6 +12,7 @@ from anthropic import AsyncAnthropic
 import httpx
 from openai import AsyncOpenAI
 from pyrogram import Client
+from runware import Runware
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from infrastructure.database.setup import create_engine, create_session_pool
@@ -41,6 +42,7 @@ from tgbot.services import broadcaster
 from tgbot.misc.phrases import bot_startup_phrases
 from aiogram.client.default import DefaultBotProperties
 from tgbot.middlewares.command_usage_middleware import CommandUsageMiddleware
+from tgbot.handlers.groups.ai_image import ai_image_router
 
 
 async def on_startup(bot: Bot, config: Config, client: Client, scheduler: AsyncIOScheduler) -> None:
@@ -180,16 +182,21 @@ async def main():
         fun_router,
         basic_router,
         admin_router,
+        ai_image_router,  
         ai_router,
     )
 
 
     register_global_middlewares(dp, config, session_pool, openai_client, storage ,bot=bot)
 
+    runware_client = Runware(api_key=config.runware.api_key, log_level=logging.INFO)
+    await runware_client.connect()
+
     dp.workflow_data.update(
         ratings_cache=ratings_cache,
         anthropic_client=anthropic_client,
         openai_client=openai_client,
+        runware_client=runware_client,
         elevenlabs_client=elevenlabs_client,
     )
     bot.session.middleware(BotMessages(session_pool , storage))
@@ -197,6 +204,8 @@ async def main():
     dp.startup.register(on_startup)
     dp.shutdown.register(shutdown)
     await dp.start_polling(bot, config=config, scheduler=scheduler, storage=storage)
+
+
 
 
 if __name__ == "__main__":

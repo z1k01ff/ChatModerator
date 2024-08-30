@@ -29,36 +29,29 @@ class AIUserContextManager:
             contexts.append(f"{context}")
         return "\n".join(contexts)
 
+    async def update_contexts_from_history(self, chat_history: str):
+        await self.analyze_and_update_context(chat_history)
 
-    async def analyze_and_update_context(self, user_id: int, user_full_name: str, message_text: str):
-        current_context = self.user_contexts.get(user_id, f"{user_full_name} ({user_id}): No information available.")
-        
+    async def analyze_and_update_context(self, chat_history: str):
         tools = [
             {
                 "type": "function",
                 "function": {
                     "name": "update_user_context",
-                    "description": "Update the context for the user",
+                    "description": "Update the context for each user",
                     "parameters": {
                         "type": "object",
                         "properties": {
+                            "user_id": {
+                                "type": "integer",
+                                "description": "The ID of the user",
+                            },
                             "new_context": {
                                 "type": "string",
                                 "description": "The new context for the user",
                             },
                         },
-                        "required": ["new_context"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "do_nothing",
-                    "description": "Do nothing when no update is needed",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
+                        "required": ["user_id", "new_context"],
                     },
                 },
             },
@@ -67,15 +60,12 @@ class AIUserContextManager:
         messages = [
             {"role": "system", "content": "You are an AI assistant that maintains comprehensive user contexts."},
             {"role": "user", "content": f"""
-Current context for {user_full_name} (ID: {user_id}):
-{current_context}
+Analyze the following chat history and update the contexts for all users mentioned:
 
-New message:
-{message_text}
+{chat_history}
 
-Analyze this message and decide if the user's context needs updating. If yes, call update_user_context with a new, comprehensive context. If no update is needed, call do_nothing.
+For each user that appears in the chat history, create or update their context. Consider the following aspects:
 
-When updating the context, consider the following aspects of a user profile:
 1. Demographics: Age, gender, location, occupation, education level
 2. Interests and Hobbies: Both general and specific areas of interest
 3. Skills and Expertise: Professional and personal competencies
@@ -93,7 +83,7 @@ When updating the context, consider the following aspects of a user profile:
 15. Recent Life Events: Significant occurrences that might affect their context
 
 Rules for context updates:
-1. Keep it concise yet informative, aiming for 200-300 characters.
+1. Keep it concise yet informative, aiming for 200-300 characters per user.
 2. Use short phrases separated by semicolons.
 3. Include the user's name and ID at the start.
 4. Prioritize recent or recurring information.
@@ -103,13 +93,13 @@ Rules for context updates:
 Example format:
 John Doe (123): 35yo software engineer; Python expert; AI enthusiast; informal communicator; daily user; seeking career growth; struggles with work-life balance; Linux user; fluent in English and Spanish; introverted; values continuous learning
 
-Maintain similar comprehensiveness while adapting to the user's unique characteristics.
+Call the update_user_context function for each user that needs their context updated or created.
 """}
         ]
 
         logging.info(str(messages))
         response = await self.openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=messages,
             tools=tools,
             tool_choice="auto",
@@ -124,10 +114,9 @@ Maintain similar comprehensiveness while adapting to the user's unique character
                 function_args = json.loads(tool_call.function.arguments)
 
                 if function_name == "update_user_context":
+                    user_id = function_args.get("user_id")
                     new_context = function_args.get("new_context")
                     self.update_user_context(user_id, new_context)
-                    return f"Updated context for user {user_id}: {new_context}"
-                elif function_name == "do_nothing":
-                    return "No update needed"
+                    logging.info(f"Updated context for user {user_id}: {new_context}")
 
-        return "No action taken"
+        return "Context update completed"

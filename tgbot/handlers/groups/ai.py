@@ -858,7 +858,7 @@ async def taro_reading_without_args(
 ):
     await message.reply("""Будь ласка, задайте питання після команди /taro:
 /taro як мені стати успішним?
-Або викличте команду у в��дповідь на повідомлення користувача.""")
+Або викличте команду у відповідь на повідомлення користувача.""")
 
 
 @ai_router.message(Command("taro"))
@@ -1057,21 +1057,6 @@ async def history_worker(
     if ai_mode == "OFF":
         return
 
-    user_context_manager = AIUserContextManager(openai_client)
-    await user_context_manager.load_contexts(state)
-
-    user_id = message.from_user.id
-    user_full_name = message.from_user.full_name
-    message_text = message.text or message.caption or ""
-
-    if len(message_text) > 75 and not message.forward_origin:
-        result = await user_context_manager.analyze_and_update_context(
-            user_id, user_full_name, message_text[:700] + "..."
-        )
-        logging.info(f"Context analysis result: {result}")  # For debugging purposes
-
-        await user_context_manager.save_contexts(state)
-
     if message.message_id - last_summarized_id >= 400:
         # Filter messages that were not covered in the previous history message
         messages_to_summarize = [
@@ -1089,3 +1074,12 @@ async def history_worker(
                 with_bot=False,
                 messages_to_summarize=messages_to_summarize,
             )
+            
+            # Update user contexts after summarizing
+            user_context_manager = AIUserContextManager(openai_client)
+            await user_context_manager.load_contexts(state)
+            
+            chat_history = format_messages_history(messages_to_summarize, with_bot=False)
+            await user_context_manager.update_contexts_from_history(chat_history)
+            
+            await user_context_manager.save_contexts(state)

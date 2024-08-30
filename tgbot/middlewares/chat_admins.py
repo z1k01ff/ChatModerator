@@ -27,11 +27,11 @@ class ChatAdminsMiddleware(BaseMiddleware):
             chat_admins_json = await self.storage.redis.get(redis_key)
             if not chat_admins_json:
                 chat_admins = await event_chat.get_administrators()
-                chat_admins_dict = {
+                chat_admins = {
                     str(admin.user.id): admin.model_dump() for admin in chat_admins
                 }
                 await self.storage.redis.set(
-                    redis_key, json.dumps(chat_admins_dict), ex=3600
+                    redis_key, json.dumps(chat_admins), ex=3600
                 )  # Cache for 1 hour
             else:
                 chat_admins_dict = json.loads(chat_admins_json)

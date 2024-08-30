@@ -188,6 +188,15 @@ class AnthropicConfig:
 
 
 @dataclass
+class RunwareConfig:
+    api_key: str
+
+    @staticmethod
+    def from_env(env):
+        return RunwareConfig(api_key=env.str("FLUX_API_KEY"))
+
+
+@dataclass
 class Config:
     """
     The main configuration class that integrates all the other configuration classes.
@@ -214,6 +223,7 @@ class Config:
     anthropic: Optional[AnthropicConfig] = None
     client: Optional[ClientAPI] = None
     elevenlabs: Optional[ElevenLabsConfig] = None
+    runware: Optional[RunwareConfig] = None
 
 
 def load_config(path: str = None) -> Config:
@@ -238,4 +248,5 @@ def load_config(path: str = None) -> Config:
         openai=OpenAIConfig.from_env(env),
         anthropic=AnthropicConfig.from_env(env),
         elevenlabs=ElevenLabsConfig.from_env(env),
+        runware=RunwareConfig.from_env(env),
     )

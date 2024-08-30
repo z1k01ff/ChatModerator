@@ -66,3 +66,6 @@ main.db
 .vscode/*
 bot.session-journal
 bot.session
+
+project_structure.json
+folders.py
