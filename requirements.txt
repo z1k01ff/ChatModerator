@@ -14,7 +14,7 @@ alembic~=1.0
 aiosqlite
 async_lru
 openai~=1.40
-anthropic
+anthropic~=0.34
 cachetools
 pyrogram
 chatgpt-md-converter

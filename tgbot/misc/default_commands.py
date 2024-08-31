@@ -32,6 +32,7 @@ commands_admins = {
     "promote": "Підвищити користувача",
     "demote": "Понизити користувача",
     "transcribe": "(AI*) Транскрибувати аудіо",
+    "img": "(AI*) Генерувати зображення",
     **commands_members,
 }
 command_defaults = {"help": "Допоможіть мені"}

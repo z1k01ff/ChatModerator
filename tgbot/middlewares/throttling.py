@@ -102,7 +102,7 @@ class ThrottlingMiddleware(BaseMiddleware):
                 if not is_ai_interaction:
                     await asyncio.sleep(5)
                     with suppress(Exception):
-                        await event.delete()
+                        # await event.delete()
                         await notification.delete()
             return 
 
