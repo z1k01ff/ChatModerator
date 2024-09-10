@@ -38,8 +38,8 @@ async def handle_generate_image(
         await sent_message.edit_text(formatted_caption)
 
         # Step 2: Generate the image
-        seed_image_base64 = await prepare_seed_image(message, seed_image)
-        image_url = await generate_image(runware_client, positive_prompt, negative_prompt, seed_image_base64)
+        seed_image = await prepare_seed_image(message, seed_image)
+        image_url = await generate_image(runware_client, positive_prompt, negative_prompt, seed_image)
 
         if not image_url:
             return await sent_message.edit_text("❌ Не вдалося згенерувати зображення. Спробуйте ще раз.")
