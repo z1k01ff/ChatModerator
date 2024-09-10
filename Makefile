@@ -31,4 +31,4 @@ logs:
 
 restart:
 	docker-compose restart
-	docker compose logs -f --tail 100
+	docker-compose logs -f --tail 100
